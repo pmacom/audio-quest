@@ -278,6 +278,9 @@ impl AudioProcessor {
                 last_beat_time: sanitized_last_beat_time,
                 quantized_bands: self.quantized_bands.iter().map(|&b| b as u32).collect(),
                 spectrogram_png: None,
+                spectral_centroid: 0.0,
+                chromagram: vec![0.0; 12], // Default for empty data
++                beat_phase: 0.0, // Default for empty data
             }
         } else {
             let sample_rate = 44100.0;
@@ -295,6 +298,50 @@ impl AudioProcessor {
                 let bins = &frequency_data[min_bin.min(frequency_data.len())..max_bin.min(frequency_data.len())];
                 if bins.is_empty() { 0.0 } else { bins.iter().copied().sum::<f32>() / bins.len() as f32 }
             };
+
+            // --- BEGIN SPECTRAL CENTROID CALCULATION ---
+            let mut weighted_sum_freq = 0.0;
+            let mut sum_mag = 0.0;
+            for (i, mag) in frequency_data.iter().enumerate() {
+                // Each bin represents a frequency range. Use the center frequency of the bin.
+                let freq = (i as f32 + 0.5) * bin_width;
+                weighted_sum_freq += freq * mag;
+                sum_mag += mag;
+            }
+            let mut spectral_centroid_value = if sum_mag > 1e-6 { weighted_sum_freq / sum_mag } else { 0.0 };
+            // Normalize by Nyquist frequency (sample_rate / 2)
+            let nyquist_freq = sample_rate / 2.0;
+            spectral_centroid_value = if nyquist_freq > 1e-6 { spectral_centroid_value / nyquist_freq } else { 0.0 };
+            // --- END SPECTRAL CENTROID CALCULATION ---
+
+            // --- BEGIN CHROMAGRAM CALCULATION ---
+            let mut chromagram_values = vec![0.0f32; 12];
+            if !frequency_data.is_empty() {
+                let reference_freq_a4 = 440.0f32;
+                for (i, mag) in frequency_data.iter().enumerate() {
+                    if *mag <= 1e-6 { continue; } // Skip silent bins
+                    let freq = (i as f32 + 0.5) * bin_width; // Center frequency of the bin
+                    if freq <= 0.0 { continue; }
+
+                    // Convert frequency to MIDI note number (approximate)
+                    // MIDI note = 12 * log2(freq / C0_freq) where C0_freq is reference for MIDI note 0
+                    // Or, relative to A4 (MIDI note 69):
+                    // MIDI note = 69 + 12 * log2(freq / 440.0)
+                    let midi_note = 69.0 + 12.0 * (freq / reference_freq_a4).log2();
+                    if midi_note < 0.0 { continue; }
+
+                    let pitch_class = (midi_note.round() as i32) % 12;
+                    chromagram_values[pitch_class as usize] += mag;
+                }
+
+                // Normalize chromagram (e.g., max value to 1.0)
+                let max_chroma_val = chromagram_values.iter().cloned().fold(0.0f32, f32::max);
+                if max_chroma_val > 1e-6 {
+                    for val in chromagram_values.iter_mut() { *val /= max_chroma_val; }
+                }
+            }
+            // --- END CHROMAGRAM CALCULATION ---
+
             let raw_low = band_mean(low_range.0, low_range.1);
             let raw_mid = band_mean(mid_range.0, mid_range.1);
             let raw_high = band_mean(high_range.0, high_range.1);
@@ -398,6 +445,17 @@ impl AudioProcessor {
             // Update bps
             self.update_bps();
 
++            // --- BEGIN BEAT PHASE CALCULATION ---
++            let mut beat_phase_value = 0.0;
++            if self.bps > 0.1 && self.last_beat_time.is_finite() && self.last_beat_time > 0.0 {
++                let beat_duration = 1.0 / self.bps as f64;
++                let time_since_last_beat = now - self.last_beat_time;
++                if time_since_last_beat >= 0.0 {
++                    beat_phase_value = (time_since_last_beat / beat_duration) % 1.0;
++                }
++            }
++            // --- END BEAT PHASE CALCULATION ---
++
             // Compute and store quantized bands (32 log bands, quantized to u8, rolling max)
             self.quantized_bands = self.compute_quantized_bands_log_rolling(frequency_data, 32, sample_rate);
 
@@ -438,6 +496,9 @@ impl AudioProcessor {
                 last_beat_time: sanitized_last_beat_time,
                 quantized_bands: self.quantized_bands.iter().map(|&b| b as u32).collect(),
                 spectrogram_png: Some(png_bytes),
+                spectral_centroid: spectral_centroid_value as f64,
+                chromagram: chromagram_values.iter().map(|&x| x as f64).collect(),
++                beat_phase: beat_phase_value,
             }
         };
 
@@ -809,6 +870,9 @@ impl From<&crate::state::PrimaryFreq530State> for ProtoState {
             last_beat_time: s.last_beat_time,
             quantized_bands: s.quantized_bands.clone(),
             spectrogram_png: s.spectrogram_png.clone(),
+            spectral_centroid: s.spectral_centroid,
+            chromagram: s.chromagram.clone(),
++            beat_phase: s.beat_phase,
         }
     }
 }
