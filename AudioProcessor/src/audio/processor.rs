@@ -284,7 +284,6 @@ impl AudioProcessor {
                 spectral_centroid: 0.0,
                 chromagram: vec![0.0; 12], // Default for empty data
 +                beat_phase: 0.0, // Default for empty data
-+                frequency_grid_map: vec![0.0; GRID_MAP_SIZE], // Default for empty data
             }
         } else {
             let sample_rate = 44100.0;
@@ -449,34 +448,6 @@ impl AudioProcessor {
             // Update bps
             self.update_bps();
 
-            // --- BEGIN FREQUENCY GRID MAP CALCULATION ---
-+            let mut grid_map_values_f32 = vec![0.0f32; GRID_MAP_SIZE];
-+            if !frequency_data.is_empty() {
-+                let num_fft_bins = frequency_data.len();
-+                for i in 0..GRID_MAP_SIZE {
-+                    let start_bin = (i * num_fft_bins) / GRID_MAP_SIZE;
-+                    let mut end_bin = ((i + 1) * num_fft_bins) / GRID_MAP_SIZE;
-+                    if end_bin == start_bin && start_bin < num_fft_bins { // Ensure at least one bin
-+                        end_bin = start_bin + 1;
-+                    }
-+                    end_bin = end_bin.min(num_fft_bins); // Clamp end_bin
-+
-+                    if start_bin < end_bin { // Ensure slice is valid
-+                        let slice = &frequency_data[start_bin..end_bin];
-+                        if !slice.is_empty() {
-+                            let sum: f32 = slice.iter().sum();
-+                            grid_map_values_f32[i] = sum / slice.len() as f32;
-+                        }
-+                    } else if start_bin < num_fft_bins { // Single bin fallback
-+                        grid_map_values_f32[i] = frequency_data[start_bin];
-+                    }
-+                }
-+                let max_val = grid_map_values_f32.iter().cloned().fold(0.0f32, f32::max);
-+                if max_val > 1e-6 { for val in grid_map_values_f32.iter_mut() { *val /= max_val; } }
-+            }
-+            let frequency_grid_map_f64 = grid_map_values_f32.iter().map(|&x| x as f64).collect();
-+            // --- END FREQUENCY GRID MAP CALCULATION ---
-+
 +            // --- BEGIN BEAT PHASE CALCULATION ---
 +            let mut beat_phase_value = 0.0;
 +            if self.bps > 0.1 && self.last_beat_time.is_finite() && self.last_beat_time > 0.0 {
@@ -531,7 +502,6 @@ impl AudioProcessor {
                 spectral_centroid: spectral_centroid_value as f64,
                 chromagram: chromagram_values.iter().map(|&x| x as f64).collect(),
 +                beat_phase: beat_phase_value,
-+                frequency_grid_map: frequency_grid_map_f64,
             }
         };
 
@@ -905,8 +875,7 @@ impl From<&crate::state::PrimaryFreq530State> for ProtoState {
             spectrogram_png: s.spectrogram_png.clone(),
             spectral_centroid: s.spectral_centroid,
             chromagram: s.chromagram.clone(),
-            beat_phase: s.beat_phase,
-+            frequency_grid_map: s.frequency_grid_map.clone(),
++            beat_phase: s.beat_phase,
         }
     }
 }
