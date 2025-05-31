@@ -386,3 +386,132 @@ For brevity, these are more condensed:
     *   **Structure:** More complex; would involve managing particle states or using a particle library. For a very simple version, maybe a flashing light: `pointLight.intensity = onset_strength_envelope * 2;` (update in `useFrame`).
 
 ---
+
+
+## Advanced Visualizer: Audio-Driven Deformable Plane
+
+This component visualizes audio frequencies as a dynamic, deformable surface.
+
+**Purpose:** Creates wave-like terrains or abstract undulating surfaces based on the audio's spectral content.
+
+**Suggested Filename:** `DeformablePlane.jsx`
+
+**Props:**
+*   `frequency_grid_map` (Array of Numbers, 0-1): A 1D array representing a 2D grid of audio energy/amplitude values. For example, 256 values could represent a 16x16 grid. This data is prepared by the Rust backend.
+*   `width` (Number, optional, default: 10): Width of the plane.
+*   `height` (Number, optional, default: 10): Height of the plane.
+*   `segmentsX` (Number, optional, default: 15): Number of width segments for the plane geometry. More segments allow for more detailed deformation.
+*   `segmentsY` (Number, optional, default: 15): Number of height segments.
+*   `maxDisplacement` (Number, optional, default: 2): Maximum displacement height for vertices.
+
+**Data Source (Rust Backend):**
+*   **Protobuf Field:** `repeated double frequency_grid_map = 45;` in `PrimaryFreq530State`. (Ensure tag number is unique and follows existing scheme).
+*   **Rust Logic:**
+    1.  Take the raw FFT magnitudes (e.g., 512-1024 bins).
+    2.  Define a target `GRID_MAP_SIZE` (e.g., 256 for a 16x16 conceptual grid).
+    3.  Map/downsample the FFT magnitudes to this `GRID_MAP_SIZE`. This can be done by averaging chunks of FFT bins or other selection/interpolation methods.
+        *   Example: For each of the 256 points in `frequency_grid_map`, average a corresponding slice of the ~512 FFT bins.
+    4.  Normalize the resulting `frequency_grid_map` array to a 0-1 range. This makes it easy for the frontend to scale the displacement.
+
+**Visuals & Data Mapping (Frontend R3F):**
+*   Uses a `THREE.PlaneGeometry`.
+*   In `useFrame`, iterate through the geometry's vertices.
+*   For each vertex, calculate its corresponding index/position in the 1D `frequency_grid_map` (which represents a 2D grid). This often involves normalizing the vertex's original X and Y coordinates to map them to the grid dimensions (e.g., if `frequency_grid_map` has 256 values for a 16x16 grid, map vertex X/Y to a 0-15 range for U and V grid coordinates).
+*   The value from `frequency_grid_map` at that index determines the vertex's displacement along its Z-axis (or Y-axis if the plane is oriented differently).
+*   `geometry.attributes.position.needsUpdate = true;` must be set after modifying positions.
+*   `geometry.computeVertexNormals();` should be called to ensure lighting reacts correctly to the deformation.
+*   **Performance Note:** For planes with many segments (e.g., > 50x50), direct JavaScript manipulation of vertices can be slow. A custom vertex shader is the recommended approach for high performance, where the `frequency_grid_map` is passed as a texture or uniform array.
+
+**Conceptual Structure:**
+
+```jsx
+// Frontend/src/components/audio_visualizers/DeformablePlane.jsx
+import React, { useRef, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+
+export default function DeformablePlane({
+  frequency_grid_map, // Should be a 1D array, e.g., 256 values for a 16x16 grid
+  width = 10,
+  height = 10,
+  segmentsX = 15, // Results in 16x16 vertices
+  segmentsY = 15,
+  maxDisplacement = 2,
+}) {
+  const meshRef = useRef();
+
+  // Memoize geometry to avoid re-creation on every render unless props change
+  const geometry = useMemo(() =>
+    new THREE.PlaneGeometry(width, height, segmentsX, segmentsY),
+    [width, height, segmentsX, segmentsY]
+  );
+
+  // Store initial positions to ensure consistent mapping logic
+  const initialPositions = useMemo(() => {
+      if (geometry) return Float32Array.from(geometry.attributes.position.array);
+      return null;
+  }, [geometry]);
+
+
+  useFrame(() => {
+    if (!meshRef.current || !frequency_grid_map || !initialPositions || frequency_grid_map.length === 0) {
+      // Optionally, set to a flat plane if no data
+      if(meshRef.current && meshRef.current.geometry) {
+        const positions = meshRef.current.geometry.attributes.position;
+        for (let i = 0; i < positions.count; i++) {
+            positions.setZ(i, 0); // Assuming Z is the displacement axis
+        }
+        positions.needsUpdate = true;
+        meshRef.current.geometry.computeVertexNormals();
+      }
+      return;
+    }
+
+    const positions = meshRef.current.geometry.attributes.position;
+    const gridResolution = Math.floor(Math.sqrt(frequency_grid_map.length));
+
+    if (gridResolution * gridResolution !== frequency_grid_map.length && frequency_grid_map.length > 0) {
+      console.warn(`frequency_grid_map length (${frequency_grid_map.length}) is not a perfect square. Deformation might be incorrect.`);
+      // Consider how to handle this case: flat plane, or attempt partial mapping?
+    }
+
+    for (let i = 0; i < positions.count; i++) {
+      // Get original X, Y of the vertex (from when the plane was flat)
+      const originalX = initialPositions[i * 3];
+      const originalY = initialPositions[i * 3 + 1];
+
+      // Normalize original vertex coordinates to 0-1 range
+      // Assumes plane is centered at (0,0) before rotation.
+      const u = (originalX + width / 2) / width;
+      const v = (originalY + height / 2) / height;
+
+      // Map normalized UV to grid indices
+      let gridX = Math.floor(u * gridResolution);
+      let gridY = Math.floor(v * gridResolution);
+
+      // Clamp indices to be within [0, gridResolution - 1]
+      gridX = Math.min(Math.max(0, gridX), gridResolution - 1);
+      gridY = Math.min(Math.max(0, gridY), gridResolution - 1);
+
+      let mapIndex = gridY * gridResolution + gridX;
+      // Final clamp for the 1D array access
+      mapIndex = Math.min(Math.max(0, mapIndex), frequency_grid_map.length - 1);
+
+
+      const displacementValue = frequency_grid_map[mapIndex] || 0;
+      const displacement = displacementValue * maxDisplacement;
+
+      positions.setZ(i, displacement); // Displace along Z-axis (local Z of the plane)
+    }
+
+    positions.needsUpdate = true;
+    meshRef.current.geometry.computeVertexNormals();
+  });
+
+  return (
+    <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow rotation={[-Math.PI / 2, 0, 0]}> {/* Rotate to make it horizontal if Y is up in world space */}
+      <meshStandardMaterial color="deepskyblue" wireframe={false} side={THREE.DoubleSide} />
+    </mesh>
+  );
+}
+```
