@@ -37,5 +37,8 @@ message PrimaryFreq530State {
   repeated double beat_times     = 31;
   double last_beat_time          = 32;
   repeated uint32 quantized_bands = 40;
+  double spectral_centroid = 41; // New field for Spectral Centroid
   optional bytes spectrogram_png = 42;
+  repeated double chromagram = 43; // 12-bin pitch class profile
+  double beat_phase = 44; // Progress to next beat (0.0 to 1.0)
 }
