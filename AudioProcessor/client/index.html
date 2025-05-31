@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio WebSocket Client</title>
+    <style>
+        body { font-family: sans-serif; background: #181818; color: #eee; margin: 0; padding: 2em; }
+        .field { margin-bottom: 1em; }
+        .label { display: inline-block; width: 180px; font-weight: bold; }
+        .bar-bg { display: inline-block; width: 300px; height: 18px; background: #333; border-radius: 9px; vertical-align: middle; margin-right: 10px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 9px; transition: width 0.15s, background 0.15s; }
+        .value { display: inline-block; min-width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs/dist/protobuf.min.js"></script>
+</head>
+<body>
+    <h2>Audio WebSocket State</h2>
+    <div id="fields"></div>
+    <script>
+        // Field config: name -> {type: 'neg1to1'|'zero1'|'number'}
+        const fieldTypes = {
+            time: 'number',
+            adjusted_time: 'number',
+            sin: 'neg1to1',
+            cos: 'neg1to1',
+            sin_normal: 'zero1',
+            cos_normal: 'zero1',
+            adjusted_sin: 'neg1to1',
+            adjusted_cos: 'neg1to1',
+            adjusted_sin_normal: 'zero1',
+            adjusted_cos_normal: 'zero1',
+            low: 'zero1',
+            mid: 'zero1',
+            high: 'zero1',
+            kick: 'zero1',
+            snare: 'zero1',
+            hihat: 'zero1',
+            vocal_likelihood: 'zero1',
+            amplitude: 'zero1',
+            raw_amplitude: 'number',
+            beat_intensity: 'zero1',
+            bps: 'number',
+        };
+
+        function createBar(value, type) {
+            let min = 0, max = 1, percent = 0, color = '#4caf50';
+            if (type === 'neg1to1') {
+                min = -1; max = 1;
+                percent = ((value - min) / (max - min)) * 100;
+                color = value < 0 ? '#e53935' : '#4caf50';
+            } else if (type === 'zero1') {
+                min = 0; max = 1;
+                percent = ((value - min) / (max - min)) * 100;
+                color = '#2196f3';
+            }
+            return `<span class="bar-bg"><span class="bar-fill" style="width:${percent}%;background:${color}"></span></span>`;
+        }
+
+        function renderFields(data) {
+            const container = document.getElementById('fields');
+            container.innerHTML = '';
+            Object.keys(fieldTypes).forEach(key => {
+                if (!(key in data)) return;
+                const type = fieldTypes[key];
+                const value = data[key];
+                let html = `<div class="field"><span class="label">${key}</span>`;
+                if (type === 'neg1to1' || type === 'zero1') {
+                    html += createBar(value, type);
+                    html += `<span class="value">${value.toFixed(3)}</span>`;
+                } else {
+                    html += `<span class="value">${value.toFixed(3)}</span>`;
+                }
+                html += '</div>';
+                container.innerHTML += html;
+            });
+        }
+
+        protobuf.load("/state.proto", function(err, root) {
+            if (err) throw err;
+            const State = root.lookupType("PrimaryFreq530State");
+            const ws = new WebSocket('ws://127.0.0.1:8765');
+            ws.binaryType = 'arraybuffer';
+            ws.onmessage = (event) => {
+                try {
+                    const state = State.decode(new Uint8Array(event.data));
+                    renderFields(state);
+                } catch (e) {
+                    console.error('Invalid Protobuf data', e);
+                }
+        };
+        ws.onerror = (error) => console.error('WebSocket error:', error);
+        });
+    </script>
+</body>
+</html>

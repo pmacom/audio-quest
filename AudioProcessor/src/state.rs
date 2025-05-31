@@ -1,0 +1,41 @@
+use serde::Serialize;
+
+#[derive(Serialize, Clone)]
+pub struct PrimaryFreq530State {
+    pub time: f64,
+    pub adjusted_time: f64,
+    pub sin: f64,
+    pub cos: f64,
+    pub sin_normal: f64,
+    pub cos_normal: f64,
+    pub adjusted_sin: f64,
+    pub adjusted_cos: f64,
+    pub adjusted_sin_normal: f64,
+    pub adjusted_cos_normal: f64,
+    pub low: f64,
+    pub mid: f64,
+    pub high: f64,
+    pub kick: f64,
+    pub snare: f64,
+    pub hihat: f64,
+    pub vocal_likelihood: f64,
+    pub amplitude: f64,
+    pub raw_amplitude: f64,
+    pub beat_intensity: f64,
+    pub bps: f64,
+    // Dynamic (windowed) normalization fields
+    pub low_dynamic: f64,
+    pub mid_dynamic: f64,
+    pub high_dynamic: f64,
+    pub kick_dynamic: f64,
+    pub snare_dynamic: f64,
+    pub hihat_dynamic: f64,
+    pub amplitude_dynamic: f64,
+    pub raw_amplitude_dynamic: f64,
+    // New fields
+    pub spectral_flux: f64,
+    pub beat_times: Vec<f64>,
+    pub last_beat_time: f64,
+    pub quantized_bands: Vec<u32>,
+    pub spectrogram_png: Option<Vec<u8>>,
+} 

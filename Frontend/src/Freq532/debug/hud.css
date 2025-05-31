@@ -1,0 +1,7 @@
+.hud-overlay, .hud-overlay * {
+  /* pointer-events: none !important;
+  user-select: none !important; */
+  z-index: 2 !important;
+  color: black !important;
+  background: transparent;
+}
