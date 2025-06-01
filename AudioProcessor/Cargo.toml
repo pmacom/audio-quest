@@ -16,6 +16,7 @@ rustfft = "6.1"
 prost = "0.12"
 prost-derive = "0.12"
 image = "0.25"
+crossterm = "0.27" # For terminal UI
 
 [build-dependencies]
 prost-build = "0.12"

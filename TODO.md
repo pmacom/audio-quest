@@ -105,3 +105,400 @@ The goal was to update `AudioProcessor/src/audio/processor.rs` to calculate and 
     *   Verify that the new fields (`spectralCentroid`, `chromagram`, `beatPhase`, `frequencyGridMap`) are present and contain plausible data. `frequencyGridMap` should be an array of (e.g.) 256 numbers, mostly between 0 and 1.
 
 Good luck! Resolving these environmental issues directly in your local setup is the most reliable way forward.
+
+---
+
+## Section 2: Terminal UI Implementation Details (New Addition)
+
+This section details how to implement an in-place updating terminal dashboard for the `AudioProcessor` application. The AI attempted to apply these changes but faced file system tool errors when trying to modify `AudioProcessor/src/main.rs`.
+
+### 1. Dependency (This part was likely successfully added by a previous AI subtask)
+
+The following dependency should ideally already be in `AudioProcessor/Cargo.toml`. Please verify its presence:
+
+```toml
+[dependencies]
+# ... other existing dependencies ...
+crossterm = "0.27"
+```
+
+If it's missing, please add it.
+
+### 2. Intended `AudioProcessor/src/main.rs` for Terminal UI
+
+The AI was unable to overwrite `AudioProcessor/src/main.rs` with the new logic due to tool failures. The following is the **complete intended code** for this file. You will need to manually replace the current content of your `AudioProcessor/src/main.rs` with this code.
+
+```rust
+#[allow(dead_code)]
+mod force_build_rs {
+    include!(concat!(env!("OUT_DIR"), "/_.rs"));
+}
+mod audio {
+    pub mod constants;
+    pub mod processor;
+}
+mod websocket {
+    pub mod server;
+}
+mod state;
+
+use std::io::{self, Write, stdout};
+use std::sync::{Arc, Mutex};
+use tokio::sync::Mutex as TokioMutex;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use tokio::net::TcpListener;
+use tungstenite::Message as WsMessage;
+use tokio::sync::mpsc;
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use futures_util::SinkExt;
+use crate::audio::processor::AudioProcessor;
+// Assuming crate::state::PrimaryFreq530State is the protobuf-generated struct
+use crate::state::PrimaryFreq530State;
+use rustfft::{FftPlanner, num_complex::Complex, num_traits::Zero};
+use std::sync::atomic::{AtomicU64, Ordering}; // Ordering was missing
+use prost::Message as ProstMessage;
+
+// Crossterm imports
+use crossterm::{
+    execute,
+    terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode, disable_raw_mode},
+    cursor::{Hide, Show, MoveTo},
+    style::{Print, SetForegroundColor, Color, ResetColor},
+    event::{poll, read, Event as CrosstermEvent, KeyCode, KeyModifiers}, // Added KeyModifiers
+};
+use std::thread;
+
+// Helper function to generate a simple text progress bar
+fn create_progress_bar(value: f64, max_value: f64, width: usize) -> String {
+    let percentage = (value / max_value).clamp(0.0, 1.0);
+    let filled_width = (percentage * width as f64).round() as usize;
+    let empty_width = width.saturating_sub(filled_width);
+    format!("[{}{}]", "█".repeat(filled_width), " ".repeat(empty_width))
+}
+
+// Helper function for character representation of an array (e.g., Chromagram)
+fn char_bar_array(values: &[f64], max_val: f64, width_per_char: usize) -> String {
+    values.iter().map(|&v| {
+        let norm_v = (v / max_val).clamp(0.0, 1.0);
+        let symbol = if norm_v > 0.66 { '#' }
+                     else if norm_v > 0.33 { '*' }
+                     else if norm_v > 0.05 { '.' }
+                     else { ' ' };
+        // Ensure each segment has a consistent width for alignment
+        format!("{:<width$}", symbol, width = width_per_char)
+    }).collect::<Vec<String>>().join("") // No space needed if width_per_char > 1
+}
+
+
+fn select_input_device() -> cpal::Device {
+    let host = cpal::default_host();
+    let devices = host.input_devices().expect("Failed to get input devices");
+    let devices_vec: Vec<_> = devices.collect();
+    if devices_vec.is_empty() {
+        println!("No input devices available. Please ensure a microphone is connected and enabled.");
+        // Consider not panicking here but returning Option<Device> or Result
+        // For now, keeping panic as it's existing behavior.
+        panic!("No input devices available");
+    }
+    println!("Available input devices:");
+    for (i, device) in devices_vec.iter().enumerate() {
+        println!("  [{}] {}", i, device.name().unwrap_or_else(|e| format!("Unknown device (error: {})",e)));
+    }
+    print!("Select input device by number: ");
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    let index: usize = input.trim().parse().expect("Invalid input. Please enter a number.");
+    if index >= devices_vec.len() {
+        panic!("Invalid device index: {}. Please choose from the list.", index);
+    }
+    devices_vec[index].clone()
+}
+
+fn select_update_rate() -> f64 {
+    println!("
+Select WebSocket update rate:");
+    println!("  [0] 60Hz   - Ultra-smooth");
+    println!("  [1] 30Hz   - Good for most visualizations");
+    println!("  [2] 20Hz   - Balanced");
+    println!("  [3] 10Hz   - Low update rate");
+    println!("  [4] 100Hz  - Ultra-high refresh");
+    println!("  [5] 120Hz  - Matches high-refresh-rate monitors");
+    println!("  [6] As fast as possible - No throttle");
+    print!("Choose update rate by number: ");
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    let index: usize = input.trim().parse().expect("Invalid input. Please enter a number.");
+    match index {
+        0 => 1.0 / 60.0, 1 => 1.0 / 30.0, 2 => 1.0 / 20.0, 3 => 1.0 / 10.0,
+        4 => 1.0 / 100.0, 5 => 1.0 / 120.0, 6 => 0.0,
+        _ => { println!("Invalid selection, defaulting to 30Hz."); 1.0 / 30.0 }
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = "127.0.0.1:8765";
+    let listener = TcpListener::bind(addr).await?;
+    println!("WebSocket server running on ws://{}. Waiting for connections...", addr);
+    println!("Audio processing and Terminal UI will start once the first WebSocket client connects.");
+
+    let clients = Arc::new(TokioMutex::new(Vec::new()));
+    let (tx_websocket_data, mut rx_websocket_data) = mpsc::channel::<Vec<u8>>(100);
+
+    let clients_clone_for_ws_send_task = Arc::clone(&clients);
+    tokio::spawn(async move {
+        while let Some(message_bytes) = rx_websocket_data.recv().await {
+            let mut locked_clients = clients_clone_for_ws_send_task.lock().await;
+            let mut current_clients_vec = Vec::new(); // Renamed
+            for mut client in locked_clients.drain(..) {
+                if client.send(WsMessage::Binary(message_bytes.clone())).await.is_ok() {
+                    current_clients_vec.push(client);
+                }
+            }
+            *locked_clients = current_clients_vec;
+        }
+    });
+
+    let audio_processing_active = Arc::new(Mutex::new(false)); // Renamed
+    let audio_processing_active_for_ui = Arc::clone(&audio_processing_active);
+
+    let latest_audio_state_shared = Arc::new(Mutex::new(None::<PrimaryFreq530State>));
+    let latest_audio_state_for_ui_thread = Arc::clone(&latest_audio_state_shared);
+
+    let ui_thread_handle = thread::spawn(move || {
+        let mut stdout_handle = stdout();
+        if enable_raw_mode().is_err() { eprintln!("Failed to enable raw mode for UI thread."); return; }
+        if execute!(stdout_handle, EnterAlternateScreen, Hide).is_err() { eprintln!("Failed to setup alternate screen for UI thread."); return; }
+
+        loop {
+            if poll(Duration::from_millis(10)).unwrap_or(false) {
+                if let Ok(CrosstermEvent::Key(key_event)) = read() {
+                    if (key_event.code == KeyCode::Char('c') && key_event.modifiers == KeyModifiers::CONTROL) || key_event.code == KeyCode::Char('q') {
+                        break;
+                    }
+                }
+            }
+
+            let state_option = latest_audio_state_for_ui_thread.lock().unwrap().clone();
+            let _ = execute!(stdout_handle, MoveTo(0,0), Clear(ClearType::All));
+
+            if let Some(state) = state_option {
+                let _ = execute!(stdout_handle, SetForegroundColor(Color::Cyan), Print("Audio Processor Live Dashboard (Press 'q' or Ctrl+C to quit UI)
+"), ResetColor);
+                let _ = execute!(stdout_handle, Print("------------------------------------------------------------------
+"));
+
+                let _ = execute!(stdout_handle, Print(format!("Time:               {:.2} s
+", state.time)));
+                let amp_bar = create_progress_bar(state.amplitude_dynamic, 1.0, 30);
+                let _ = execute!(stdout_handle, Print(format!("Amplitude (Dyn):    {:.2} {}
+", state.amplitude_dynamic, amp_bar)));
+                let _ = execute!(stdout_handle, Print(format!("BPS:                {:.2}
+", state.bps)));
+                let intensity_bar = create_progress_bar(state.beat_intensity, 1.0, 30);
+                let _ = execute!(stdout_handle, Print(format!("Beat Intensity:     {:.2} {}
+", state.beat_intensity, intensity_bar)));
+                let phase_bar = create_progress_bar(state.beat_phase, 1.0, 30);
+                let _ = execute!(stdout_handle, Print(format!("Beat Phase:         {:.2} {}
+", state.beat_phase, phase_bar)));
+                let centroid_bar = create_progress_bar(state.spectral_centroid, 1.0, 30);
+                let _ = execute!(stdout_handle, Print(format!("Spectral Centroid:  {:.2} {}
+
+", state.spectral_centroid, centroid_bar)));
+
+                let pitch_names = ["C ", "C#", "D ", "D#", "E ", "F ", "F#", "G ", "G#", "A ", "A#", "B "];
+                let _ = execute!(stdout_handle, Print("Chromagram Top 3:   "));
+                if !state.chromagram.is_empty() {
+                    let mut sorted_chroma: Vec<(usize, &f64)> = state.chromagram.iter().enumerate().collect();
+                    sorted_chroma.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
+                    for (i, (idx, val)) in sorted_chroma.iter().take(3).enumerate() {
+                         let _ = execute!(stdout_handle, Print(format!("[{}: {:.2}] ", pitch_names[*idx % 12], val)));
+                    }
+                }
+                let _ = execute!(stdout_handle, Print(format!("
+  Pitches:          {}", pitch_names.join(" ")).as_str()));
+                let chroma_chars = char_bar_array(&state.chromagram, 1.0, 2); // Each pitch visual takes 2 char width + 1 space from join
+                let _ = execute!(stdout_handle, Print(format!("
+  Visual:           {}
+
+", chroma_chars)));
+
+
+                let _ = execute!(stdout_handle, Print(format!("Quantized Bands (Sample of 5 / {} total):
+", state.quantized_bands.len())));
+                for i in 0..5.min(state.quantized_bands.len()) {
+                    let val_f64 = state.quantized_bands[i] as f64;
+                    let bar = create_progress_bar(val_f64, 255.0, 30);
+                    let _ = execute!(stdout_handle, Print(format!("[{:02}] {} {:.2}
+", i, bar, val_f64/255.0)));
+                }
+                let _ = execute!(stdout_handle, Print("
+"));
+
+                let _ = execute!(stdout_handle, Print(format!("Frequency Grid Map ({} values):
+", state.frequency_grid_map.len())));
+                if !state.frequency_grid_map.is_empty() {
+                    let sum_fgm: f64 = state.frequency_grid_map.iter().sum();
+                    let avg_fgm = sum_fgm / state.frequency_grid_map.len() as f64;
+                    let min_fgm = state.frequency_grid_map.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+                    let max_fgm = state.frequency_grid_map.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+                    let _ = execute!(stdout_handle, Print(format!("  Avg: {:.3}   Min: {:.3}   Max: {:.3}
+", avg_fgm, min_fgm, max_fgm)));
+                } else {
+                    let _ = execute!(stdout_handle, Print("  (No data)
+"));
+                }
+
+                let _ = execute!(stdout_handle, SetForegroundColor(Color::DarkGrey), Print("------------------------------------------------------------------
+"), ResetColor);
+
+            } else {
+                let processing_guard = audio_processing_active_for_ui.lock().unwrap();
+                if *processing_guard {
+                     let _ = execute!(stdout_handle, Print("Processing audio, waiting for first data packet to render UI..."));
+                } else {
+                     let _ = execute!(stdout_handle, Print("Terminal UI active. Waiting for WebSocket client to connect to start audio processing..."));
+                }
+            }
+
+            stdout_handle.flush().unwrap();
+            thread::sleep(Duration::from_millis(100));
+        }
+        // Cleanup terminal
+        let _ = execute!(stdout_handle, Show, LeaveAlternateScreen);
+        let _ = disable_raw_mode();
+        // println!("Terminal UI thread exited gracefully."); // This might print over the main terminal
+    });
+
+    println!("Main thread: Waiting for the first WebSocket client to connect to initialize audio stream...");
+    let (stream_ws_first, _) = listener.accept().await?;
+    println!("Main thread: First WebSocket client connected!");
+    let clients_ref_first = Arc::clone(&clients);
+    tokio::spawn(websocket::server::handle_connection(stream_ws_first, clients_ref_first));
+
+    {
+        let mut processing_guard = audio_processing_active.lock().unwrap();
+        *processing_guard = true; // Signal that audio processing will start
+    }
+    println!("Main thread: Audio processing and analysis will now start with device selection.");
+
+    let device = select_input_device();
+    let _update_period_ws = select_update_rate(); // Original variable for WebSocket rate, not directly used for throttling in this main.rs version
+    let config = device.default_input_config().expect("No input config available");
+    let processor_arc = Arc::new(Mutex::new(AudioProcessor::new()));
+    let processor_clone_audio = Arc::clone(&processor_arc);
+    let tx_clone_audio = tx_websocket_data.clone();
+    let stream_latest_audio_state_audio = Arc::clone(&latest_audio_state_shared);
+
+    let stream = device.build_input_stream(
+        &config.into(),
+        move |data: &[f32], _: &cpal::InputCallbackInfo| {
+            let current_time_secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+            let sample_rate_hz = config.sample_rate().0 as f32;
+            let frame_delta_time = if !data.is_empty() { data.len() as f32 / sample_rate_hz } else { 1.0 / 60.0 }; // Renamed
+
+            let fft_size = 1024;
+            let mut fft_input_buffer = vec![Complex::zero(); fft_size];
+            let mut fft_output_buffer = vec![Complex::zero(); fft_size];
+            // FFT planner should ideally be created once and reused if FFT size is constant.
+            // For simplicity in this callback, it's created here. For performance, consider optimizing.
+            let mut planner = FftPlanner::<f32>::new();
+            let fft = planner.plan_fft_forward(fft_size);
+
+            for (i, sample_val) in data.iter().enumerate().take(fft_size) {
+                fft_input_buffer[i] = Complex::new(*sample_val, 0.0);
+            }
+            for i in data.len()..fft_size { // Zero-pad if data is shorter
+                fft_input_buffer[i] = Complex::zero();
+            }
+
+            fft_output_buffer.copy_from_slice(&fft_input_buffer);
+            fft.process(&mut fft_output_buffer);
+            let magnitudes: Vec<f32> = fft_output_buffer.iter().take(fft_size / 2).map(|c| c.norm()).collect();
+
+            let mut processor_guard = processor_clone_audio.lock().unwrap();
+            // update_base_state in processor.rs is expected to handle its own timing for when to return Some(state)
+            // based on websocket_update_interval_ms.
+            if let Some(internal_state) = processor_guard.update_base_state(frame_delta_time, &magnitudes, current_time_secs) {
+                let proto_state_for_ws = PrimaryFreq530State::from(&internal_state);
+
+                let mut buf = Vec::new();
+                ProstMessage::encode(&proto_state_for_ws, &mut buf).unwrap();
+                if tx_clone_audio.try_send(buf).is_err() {
+                    // Optional: log error if channel is full, indicating consumer (WebSocket sender) is too slow or blocked.
+                }
+
+                let mut shared_data_guard = stream_latest_audio_state_audio.lock().unwrap();
+                *shared_data_guard = Some(proto_state_for_ws);
+            }
+        },
+        |err| eprintln!("Audio stream error: {}", err),
+        None,
+    )?;
+
+    stream.play()?;
+    println!("Main thread: Audio stream started. SampleRate: {:?}, Channels: {:?}, BufferSize: {:?}", config.sample_rate(), config.channels(), config.buffer_size());
+
+    loop {
+        if let Ok((stream_ws_subsequent, _)) = listener.accept().await {
+             println!("Main thread: New WebSocket client connected!");
+            let clients_ref_subsequent = Arc::clone(&clients);
+            tokio::spawn(websocket::server::handle_connection(stream_ws_subsequent, clients_ref_subsequent));
+        } else {
+            eprintln!("Error accepting new WebSocket connection. Main listener loop might exit.");
+            break; // Exit if listener fails
+        }
+    }
+
+    // Attempt to join the UI thread if the main loop exits (may not always happen cleanly)
+    if ui_thread_handle.join().is_err() {
+        eprintln!("UI thread panicked or could not be joined.");
+    }
+    // Final terminal cleanup attempt
+    let _ = execute!(stdout(), Show, LeaveAlternateScreen);
+    let _ = disable_raw_mode();
+
+    Ok(())
+}
+
+```
+
+### 3. Explanation of `main.rs` Changes (Summary):
+
+*   **Crate Usage:** Imports `crossterm` for terminal control.
+*   **Shared State:** `latest_audio_state_shared (Arc<Mutex<Option<PrimaryFreq530State>>>)` holds the most recent full state object from the audio processing callback.
+*   **Audio Callback Update:** After preparing `proto_state_for_ws` for WebSocket, it also locks `stream_latest_audio_state` and updates this shared state.
+*   **Terminal UI Thread:**
+    *   Spawned using `std::thread::spawn`.
+    *   Enters an alternate screen, enables raw mode, and hides the cursor.
+    *   Loops every 100ms (configurable).
+    *   In each loop iteration:
+        *   Polls for 'q' or Ctrl+C key presses to allow graceful exit from the UI loop.
+        *   Locks and clones the `latest_audio_state_shared`.
+        *   Clears the terminal screen (`ClearType::All`) and moves the cursor to `(0,0)`.
+        *   Prints formatted data using `execute!` and `Print`. Progress bars and character arrays are used for some fields.
+        *   Flushes stdout.
+    *   On loop exit (e.g., 'q' pressed), it attempts to restore the terminal (show cursor, leave alternate screen, disable raw mode).
+*   **Main Thread Logic Update for Stream Initialization:**
+    *   The audio input device selection, stream setup, and `stream.play()` are now deferred until *after* the first WebSocket client connects. This prevents the audio processing and terminal UI from starting prematurely.
+    *   An `audio_processing_active` flag (shared via `Arc<Mutex<>>`) is used to inform the UI thread when audio processing has actually started.
+*   **Helper functions:** `create_progress_bar` and `char_bar_array` assist in visualizing data in text mode.
+*   **Graceful Exit:** Includes basic handling for 'q' or Ctrl+C within the UI thread to exit its loop and clean up the terminal. The main application will still terminate abruptly on Ctrl+C if not handled by a signal handler (which is outside this scope). If the terminal is left in a strange state, typing `reset` usually fixes it.
+
+### 4. Build and Run Instructions (for user):
+
+1.  Ensure `AudioProcessor/src/state.proto` includes all fields as verified.
+2.  Manually replace the content of `AudioProcessor/src/main.rs` with the code provided above.
+3.  Verify `AudioProcessor/src/audio/processor.rs` correctly calculates and populates all fields in `PrimaryFreq530State` (including `frequency_grid_map`), and that the `From` trait implementation for converting to `ProtoState` (the generated Protobuf struct) is correct and includes all fields.
+4.  In the `AudioProcessor` directory, run `cargo clean && cargo build`.
+5.  Address any compilation errors. These might relate to how `PrimaryFreq530State` is defined/used between `processor.rs` and `main.rs` if there are inconsistencies with the generated `state.rs`. The provided `main.rs` assumes `crate::state::PrimaryFreq530State` is the correct, generated struct type containing all fields.
+6.  Run `cargo run`.
+    *   The application will print "WebSocket server running..." and "Audio processing and Terminal UI will start once the first WebSocket client connects."
+    *   Connect a WebSocket client (e.g., your frontend application).
+    *   After the first client connects, you'll be prompted to select the audio input device and update rate.
+    *   The terminal UI should then start in an alternate screen and update with live data.
+    *   Press 'q' in the terminal running the Rust app to quit the UI thread and restore the terminal. Ctrl+C will exit the whole application.
+
+This `TODO.md` update should provide the user with the necessary code and instructions.
