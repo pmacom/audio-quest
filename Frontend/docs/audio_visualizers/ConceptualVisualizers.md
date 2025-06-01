@@ -387,7 +387,6 @@ For brevity, these are more condensed:
 
 ---
 
-
 ## Advanced Visualizer: Audio-Driven Deformable Plane
 
 This component visualizes audio frequencies as a dynamic, deformable surface.
@@ -515,3 +514,262 @@ export default function DeformablePlane({
   );
 }
 ```
+
+---
+
+## Integrating New Audio Data in the Frontend
+
+This section outlines how to update your frontend application, specifically the `useFreq530` Zustand store and your React Three Fiber (R3F) components, to consume the new audio data fields like `spectralCentroid`, `chromagram`, `beatPhase`, and `frequencyGridMap`.
+
+### Updating the Zustand Store (`useFreq530`)
+
+To make the new audio data fields available to your R3F components, your `useFreq530` Zustand store needs to be updated. This involves two main parts:
+
+1.  **Augmenting the Store's State Definition:**
+    The initial state and the part of your store's state that holds the audio data must be updated to include these new fields. When converting from protobuf field names (snake_case) to JavaScript/TypeScript, it's common practice to use camelCase.
+
+    ```typescript
+    // Conceptual representation of your Zustand store's state slice for audio data
+    // (Assuming you have types for your state, e.g., AudioDataState)
+
+    // Assuming your state.proto message PrimaryFreq530State translates to an object like this:
+    interface PrimaryFreq530StateFromProto {
+      time?: number;
+      adjustedTime?: number;
+      // ... other existing fields in camelCase ...
+      // Ensure all fields from your state.proto are represented here in camelCase
+      sin?: number;
+      cos?: number;
+      sinNormal?: number;
+      cosNormal?: number;
+      adjustedSin?: number;
+      adjustedCos?: number;
+      adjustedSinNormal?: number;
+      adjustedCosNormal?: number;
+      low?: number;
+      mid?: number;
+      high?: number;
+      kick?: number;
+      snare?: number;
+      hihat?: number;
+      vocalLikelihood?: number;
+      amplitude?: number;
+      rawAmplitude?: number;
+      beatIntensity?: number;
+      bps?: number;
+      lowDynamic?: number;
+      midDynamic?: number;
+      highDynamic?: number;
+      kickDynamic?: number;
+      snareDynamic?: number;
+      hihatDynamic?: number;
+      amplitudeDynamic?: number;
+      rawAmplitudeDynamic?: number;
+      spectralFlux?: number;
+      beatTimes?: number[];
+      lastBeatTime?: number;
+      quantizedBands?: number[]; // Protobuf 'repeated uint32' might become number[]
+
+      // New fields from state.proto
+      spectralCentroid?: number;
+      spectrogramPng?: Uint8Array; // Protobuf 'optional bytes'
+      chromagram?: number[];       // repeated double
+      beatPhase?: number;
+      frequencyGridMap?: number[]; // repeated double
+    }
+
+    // Your Zustand store's state might look something like this:
+    type StoreState = {
+      isConnected: boolean;
+      data: PrimaryFreq530StateFromProto | null; // This 'data' object holds the decoded message
+      // ... other store state like methods for connect/disconnect ...
+      setData: (decodedData: PrimaryFreq530StateFromProto) => void;
+    };
+
+    // Initial state for the 'data' part might be:
+    const initialAudioDataState: PrimaryFreq530StateFromProto = {
+      time: 0,
+      adjustedTime: 0,
+      // ... initialize all existing fields ...
+      sin: 0, cos: 0, sinNormal: 0, cosNormal: 0, adjustedSin: 0, adjustedCos: 0, adjustedSinNormal: 0, adjustedCosNormal: 0,
+      low: 0, mid: 0, high: 0, kick: 0, snare: 0, hihat: 0, vocalLikelihood: 0, amplitude: 0, rawAmplitude: 0,
+      beatIntensity: 0, bps: 0,
+      lowDynamic: 0, midDynamic: 0, highDynamic: 0, kickDynamic: 0, snareDynamic: 0, hihatDynamic: 0, amplitudeDynamic: 0, rawAmplitudeDynamic: 0,
+      spectralFlux: 0,
+      beatTimes: [],
+      lastBeatTime: 0,
+      quantizedBands: Array(32).fill(0), // Example initialization
+
+      // Initialize new fields
+      spectralCentroid: 0,
+      spectrogramPng: undefined,
+      chromagram: Array(12).fill(0), // Example initialization
+      beatPhase: 0,
+      frequencyGridMap: Array(256).fill(0), // Example initialization, adjust size as needed
+    };
+    ```
+
+2.  **Updating the WebSocket Message Handler:**
+    The part of your store that handles incoming WebSocket messages and decodes the protobuf data needs to correctly extract these new fields from the decoded JavaScript object and update the store's state.
+
+    Zustand's `set` function is used to update the state. Assuming you have a protobuf message object `decodedMessage` after `YourProtoMessageType.decode(new Uint8Array(arrayBuffer))`:
+
+    ```typescript
+    // Inside your WebSocket onmessage handler within the Zustand store setup:
+    // ws.onmessage = async (event) => {
+    //   const arrayBuffer = await (event.data as Blob).arrayBuffer();
+    //   // Ensure YourProtoMessageType is the correct type generated from state.proto
+    //   const decodedMessage = YourProtoMessageType.decode(new Uint8Array(arrayBuffer));
+
+    //   // Prost-generated JS objects (from Rust) usually have fields in camelCase
+    //   // if the proto definition was snake_case.
+    //   // If you are using a different JS protobuf library, it might produce an object
+    //   // that needs conversion (e.g., YourProtoMessageType.toObject(decodedMessage, {/* options */} ));
+    //   // For this example, let's assume decodedMessage directly has the camelCased fields.
+
+    //   set((state) => ({
+    //     data: {
+    //       // It's often safer to map all fields explicitly if the backend sends complete objects
+    //       // or ensure defaults if some fields might be missing.
+    //       time: decodedMessage.time || 0,
+    //       adjustedTime: decodedMessage.adjustedTime || 0,
+    //       sin: decodedMessage.sin || 0,
+    //       cos: decodedMessage.cos || 0,
+    //       sinNormal: decodedMessage.sinNormal || 0,
+    //       cosNormal: decodedMessage.cosNormal || 0,
+    //       adjustedSin: decodedMessage.adjustedSin || 0,
+    //       adjustedCos: decodedMessage.adjustedCos || 0,
+    //       adjustedSinNormal: decodedMessage.adjustedSinNormal || 0,
+    //       adjustedCosNormal: decodedMessage.adjustedCosNormal || 0,
+    //       low: decodedMessage.low || 0,
+    //       mid: decodedMessage.mid || 0,
+    //       high: decodedMessage.high || 0,
+    //       kick: decodedMessage.kick || 0,
+    //       snare: decodedMessage.snare || 0,
+    //       hihat: decodedMessage.hihat || 0,
+    //       vocalLikelihood: decodedMessage.vocalLikelihood || 0,
+    //       amplitude: decodedMessage.amplitude || 0,
+    //       rawAmplitude: decodedMessage.rawAmplitude || 0,
+    //       beatIntensity: decodedMessage.beatIntensity || 0,
+    //       bps: decodedMessage.bps || 0,
+    //       lowDynamic: decodedMessage.lowDynamic || 0,
+    //       midDynamic: decodedMessage.midDynamic || 0,
+    //       highDynamic: decodedMessage.highDynamic || 0,
+    //       kickDynamic: decodedMessage.kickDynamic || 0,
+    //       snareDynamic: decodedMessage.snareDynamic || 0,
+    //       hihatDynamic: decodedMessage.hihatDynamic || 0,
+    //       amplitudeDynamic: decodedMessage.amplitudeDynamic || 0,
+    //       rawAmplitudeDynamic: decodedMessage.rawAmplitudeDynamic || 0,
+    //       spectralFlux: decodedMessage.spectralFlux || 0,
+    //       beatTimes: decodedMessage.beatTimes || [],
+    //       lastBeatTime: decodedMessage.lastBeatTime || 0,
+    //       quantizedBands: decodedMessage.quantizedBands || [],
+
+    //       // Add mapping for new fields:
+    //       spectralCentroid: decodedMessage.spectralCentroid || 0,
+    //       spectrogramPng: decodedMessage.spectrogramPng || undefined,
+    //       chromagram: decodedMessage.chromagram || [],
+    //       beatPhase: decodedMessage.beatPhase || 0,
+    //       frequencyGridMap: decodedMessage.frequencyGridMap || [],
+    //     }
+    //   }));
+    // };
+    ```
+
+**Important Notes for Zustand Implementation:**
+
+*   **Protobuf Code Generation:** The exact field names (camelCase vs snake_case) and types on the `decodedMessage` object depend on your JavaScript/TypeScript protobuf library (e.g., `protoc` with JS plugins, `protobuf.js`, `ts-proto`). Ensure consistency.
+*   **Default Values:** Provide sensible defaults for all fields in your store's initial state and when setting data from potentially incomplete messages.
+*   **Type Safety:** If using TypeScript, ensure your state types (`PrimaryFreq530StateFromProto`, `StoreState`) are accurate and comprehensive.
+
+### Consuming New Data in Visualizer Components
+
+Once your `useFreq530` Zustand store is updated, your R3F visualizer components will consume this data via props, passed down from a parent component that subscribes to the store.
+
+**Data Flow Review:**
+
+1.  **WebSocket** -> **Zustand Store (`useFreq530`)** (decodes and updates state)
+2.  **Parent/Layout Component (e.g., `DemoAudioVisualizersLayout.jsx`)** (subscribes to store, gets `audioData`)
+3.  **Props** (parent passes specific data: `audioData.spectralCentroid`, `audioData.frequencyGridMap`, etc.)
+4.  **Individual Visualizer Components** (receive data as props)
+
+**Refined `DemoAudioVisualizersLayout.jsx` Example (Conceptual):**
+
+This example shows how `DemoAudioVisualizersLayout` would subscribe to the store and pass the new (and existing) data fields to the respective conceptual components.
+
+```jsx
+// Conceptual Frontend/src/components/audio_visualizers/DemoAudioVisualizersLayout.jsx
+import React from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Environment } from '@react-three/drei';
+// Ensure this path is correct for your project structure
+import { useFreq530 } from '../../stores/useFreq530';
+
+// Import individual visualizer components as previously defined in this document
+import AmplitudeVisualizer from './AmplitudeVisualizer';
+import BeatIntensityPulsar from './BeatIntensityPulsar';
+import FrequencyBandsDisplay from './FrequencyBandsDisplay';
+import SpectralCentroidColorShift from './SpectralCentroidColorShift';
+import ChromagramVisualizer from './ChromagramVisualizer';
+import BeatPhaseAnimator from './BeatPhaseAnimator';
+import DeformablePlane from './DeformablePlane';
+// ... import other conceptual components if you plan to use them
+
+export default function DemoAudioVisualizersLayout() {
+  // Subscribe to the 'data' slice of your Zustand store
+  const audioData = useFreq530(state => state.data);
+
+  if (!audioData) {
+    // Handle case where data might not be loaded yet or WebSocket is disconnected
+    return <div>Loading audio data or WebSocket disconnected...</div>;
+  }
+
+  return (
+    <Canvas style={{ height: '100vh', width: '100vw' }} camera={{ position: [0, 5, 20], fov: 50 }}>
+      <ambientLight intensity={0.7} />
+      <directionalLight position={[5, 10, 7]} intensity={1.5} castShadow />
+      <Environment preset="sunset" />
+      <OrbitControls />
+
+      {/* Group for existing visualizers - adjust positions as needed */}
+      <group position={[0, 0, 0]}>
+        <group position={[-9, 0, 0]}><AmplitudeVisualizer amplitude_dynamic={audioData.amplitudeDynamic} /></group>
+        <group position={[-6, 0, 0]}><BeatIntensityPulsar beat_intensity={audioData.beatIntensity} last_beat_time={audioData.lastBeatTime} /></group>
+        <group position={[-2, -2, 0]}><FrequencyBandsDisplay quantized_bands={audioData.quantizedBands} /></group>
+      </group>
+
+      {/* Group for new spectral/harmonic/phase visualizers - adjust positions */}
+      <group position={[0, 5, 0]}>
+        <group position={[-6, 0, 0]}><SpectralCentroidColorShift spectral_centroid={audioData.spectralCentroid} /></group>
+        <group position={[-2, 0, 0]}><ChromagramVisualizer chromagram={audioData.chromagram} /></group>
+        <group position={[2, 0, 0]}><BeatPhaseAnimator beat_phase={audioData.beatPhase} /></group>
+      </group>
+
+      {/* Deformable Plane - adjust position and props */}
+      <group position={[0, -5, -5]}>
+        <DeformablePlane
+          frequency_grid_map={audioData.frequencyGridMap}
+          width={15}
+          height={15}
+          segmentsX={23} // Example: for a 24x24 vertex grid if map has 576 values
+          segmentsY={23}
+          maxDisplacement={3}
+        />
+      </group>
+
+      {/*
+        If you implement other suggested features (Spectral Crest, Rolloff, etc.),
+        ensure their corresponding fields are added to state.proto, the Rust processor,
+        the Zustand store, and then passed as props here. For example:
+
+        // <group position={[/*...*/]}>
+        //   <SpectralCrestDefiner spectral_crest={audioData.spectralCrest} />
+        // </group>
+      */}
+    </Canvas>
+  );
+}
+```
+
+**Key Takeaway for Component Consumption:**
+The individual visualizer components (`AmplitudeVisualizer`, `DeformablePlane`, etc.) should be designed to be "dumb" regarding data fetching. They receive all necessary audio data via props. The parent component (`DemoAudioVisualizersLayout` in this concept) is responsible for connecting to the Zustand store and passing down the appropriate slices of the `audioData` object. This promotes reusability and separation of concerns.
