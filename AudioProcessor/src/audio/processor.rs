@@ -1,5 +1,4 @@
 use crate::state::PrimaryFreq530State;
-use prost::Message;
 use image::{ImageBuffer, Rgb};
 use std::io::Cursor;
 
@@ -126,6 +125,7 @@ pub struct AudioProcessor {
     pub fade_in_out: f32,
     pub quantized_bands: Vec<u8>,
     pub rolling_max_bands: f32,
+    pub prev_frequency_grid: Option<Vec<f32>>,
 }
 
 pub struct BeatDetectionState {
@@ -202,6 +202,7 @@ impl AudioProcessor {
             fade_in_out: 0.0,
             quantized_bands: vec![0; 32],
             rolling_max_bands: 1.0,
+            prev_frequency_grid: None,
         }
     }
 
@@ -450,30 +451,184 @@ impl AudioProcessor {
             self.update_bps();
 
             // --- BEGIN FREQUENCY GRID MAP CALCULATION ---
+            // Create a 16x16 grid representing a 3D spectrogram
+            // X-axis: frequency bands (low to high)
+            // Y-axis: temporal/harmonic analysis 
+            // Z-axis: magnitude (will be the displacement height)
+            let grid_size = 16; // 16x16 = 256 total points
             let mut grid_map_values_f32 = vec![0.0f32; GRID_MAP_SIZE];
+            
             if !frequency_data.is_empty() {
-                let num_fft_bins = frequency_data.len();
-                for i in 0..GRID_MAP_SIZE {
-                    let start_bin = (i * num_fft_bins) / GRID_MAP_SIZE;
-                    let mut end_bin = ((i + 1) * num_fft_bins) / GRID_MAP_SIZE;
-                    if end_bin == start_bin && start_bin < num_fft_bins { // Ensure at least one bin
-                        end_bin = start_bin + 1;
-                    }
-                    end_bin = end_bin.min(num_fft_bins); // Clamp end_bin
-
-                    if start_bin < end_bin { // Ensure slice is valid
-                        let slice = &frequency_data[start_bin..end_bin];
-                        if !slice.is_empty() {
-                            let sum: f32 = slice.iter().sum();
-                            grid_map_values_f32[i] = sum / slice.len() as f32;
+                let sample_rate = 44100.0;
+                let nyquist = sample_rate / 2.0;
+                let bin_width = nyquist / frequency_data.len() as f32;
+                
+                // Calculate overall audio activity level
+                let total_energy: f32 = frequency_data.iter().map(|&x| x * x).sum();
+                let avg_energy = total_energy / frequency_data.len() as f32;
+                let audio_activity_threshold = 0.00001; // Much lower threshold - just above noise floor
+                let is_audio_active = avg_energy > audio_activity_threshold;
+                
+                // Calculate a more sensitive activity level for scaling effects
+                let activity_level = if avg_energy > audio_activity_threshold {
+                    (avg_energy / (audio_activity_threshold * 10.0)).min(1.0) // Scale 0-1 based on energy
+                } else {
+                    0.0
+                };
+                
+                // Define logarithmic frequency ranges for more musical mapping
+                let min_freq = 20.0; // Sub-bass
+                let max_freq = nyquist; // Nyquist frequency
+                
+                for grid_y in 0..grid_size {
+                    for grid_x in 0..grid_size {
+                        let grid_index = grid_y * grid_size + grid_x;
+                        
+                        // Map X coordinate to logarithmic frequency range
+                        let freq_ratio = grid_x as f32 / (grid_size - 1) as f32;
+                        let start_freq = min_freq * (max_freq / min_freq).powf(freq_ratio);
+                        let end_freq = min_freq * (max_freq / min_freq).powf((freq_ratio + 1.0 / grid_size as f32).min(1.0));
+                        
+                        // Convert frequencies to FFT bin indices
+                        let start_bin = (start_freq / bin_width).floor() as usize;
+                        let end_bin = (end_freq / bin_width).ceil() as usize;
+                        
+                        // Extract magnitude for this frequency band
+                        let mut band_magnitude = 0.0f32;
+                        let mut bin_count = 0;
+                        
+                        for bin in start_bin..end_bin.min(frequency_data.len()) {
+                            band_magnitude += frequency_data[bin];
+                            bin_count += 1;
                         }
-                    } else if start_bin < num_fft_bins { // Single bin fallback
-                        grid_map_values_f32[i] = frequency_data[start_bin];
+                        
+                        if bin_count > 0 {
+                            band_magnitude /= bin_count as f32;
+                        }
+                        
+                        // Apply Y-axis modulation for temporal/harmonic effects
+                        // ALL ROWS start with base frequency data, then add effects
+                        let mut final_magnitude = band_magnitude; // Base for all rows
+                        
+                        match grid_y {
+                            // Bottom rows: Pure frequency magnitude + slight bass emphasis
+                            0..=3 => {
+                                let bass_boost = if grid_x < 4 { 1.0 + self.prev_low * 0.3 } else { 1.0 };
+                                final_magnitude = band_magnitude * bass_boost;
+                            },
+                            // Lower-middle rows: Base + harmonic analysis
+                            4..=7 => {
+                                // Always include base frequency, add harmonic enhancement
+                                let harmonic_enhancement = if activity_level > 0.05 {
+                                    let fundamental_freq = start_freq;
+                                    let mut harmonic_energy = 0.0;
+                                    
+                                    // Check 2nd and 3rd harmonics
+                                    for harmonic in [2.0, 3.0] {
+                                        let harmonic_freq = fundamental_freq * harmonic;
+                                        if harmonic_freq < max_freq {
+                                            let harmonic_bin = (harmonic_freq / bin_width) as usize;
+                                            if harmonic_bin < frequency_data.len() {
+                                                harmonic_energy += frequency_data[harmonic_bin];
+                                            }
+                                        }
+                                    }
+                                    harmonic_energy * 0.2 * activity_level
+                                } else { 0.0 };
+                                
+                                final_magnitude = band_magnitude + harmonic_enhancement;
+                            },
+                            // Upper-middle rows: Base + beat modulation
+                            8..=11 => {
+                                // Always include base frequency, add beat modulation
+                                let beat_enhancement = if self.bps > 0.1 && self.beat_intensity > 0.05 {
+                                    let beat_phase = if self.last_beat_time.is_finite() && self.last_beat_time > 0.0 {
+                                        let beat_duration = 1.0 / self.bps as f64;
+                                        let time_since_beat = now - self.last_beat_time;
+                                        if time_since_beat >= 0.0 {
+                                            ((time_since_beat / beat_duration) % 1.0) as f32
+                                        } else { 0.0 }
+                                    } else { 0.0 };
+                                    
+                                    // Gentler beat effect that adds to base rather than multiplying
+                                    let beat_strength = self.beat_intensity * activity_level.max(0.1);
+                                    0.2 * beat_strength * (beat_phase * 2.0 * std::f32::consts::PI).sin()
+                                } else { 0.0 };
+                                
+                                final_magnitude = band_magnitude + band_magnitude * beat_enhancement;
+                            },
+                            // Top rows: Base + spectral flux and mid/high emphasis
+                            12..=15 => {
+                                // Always include base frequency, add spectral change emphasis
+                                let flux_enhancement = if let Some(ref prev_bins) = self.prev_fft_bins {
+                                    let mut local_flux = 0.0;
+                                    for bin in start_bin..end_bin.min(frequency_data.len().min(prev_bins.len())) {
+                                        let current = frequency_data[bin].max(0.0);
+                                        let previous = prev_bins[bin].max(0.0);
+                                        local_flux += (current - previous).max(0.0);
+                                    }
+                                    local_flux / (end_bin - start_bin).max(1) as f32
+                                } else { 0.0 };
+                                
+                                // Add mid/high frequency emphasis for top rows
+                                let freq_emphasis = if start_freq > 1000.0 { 
+                                    self.prev_high * 0.3 
+                                } else if start_freq > 250.0 { 
+                                    self.prev_mid * 0.2 
+                                } else { 0.0 };
+                                
+                                final_magnitude = band_magnitude + flux_enhancement * activity_level + freq_emphasis;
+                            },
+                            _ => final_magnitude = band_magnitude,
+                        }
+                        
+                        grid_map_values_f32[grid_index] = final_magnitude;
                     }
                 }
-                let max_val = grid_map_values_f32.iter().cloned().fold(0.0f32, f32::max);
-                if max_val > 1e-6 { for val in grid_map_values_f32.iter_mut() { *val /= max_val; } }
+                
+                // Apply frequency-band specific normalization to preserve musical dynamics
+                // Always normalize, but scale the normalization by activity level
+                for band_x in 0..grid_size {
+                    // Find max value in this frequency band (across all Y values)
+                    let mut band_max = 0.0f32;
+                    for band_y in 0..grid_size {
+                        let idx = band_y * grid_size + band_x;
+                        band_max = band_max.max(grid_map_values_f32[idx]);
+                    }
+                    
+                    // Normalize this frequency band independently
+                    if band_max > 1e-8 { // Lower threshold for normalization
+                        for band_y in 0..grid_size {
+                            let idx = band_y * grid_size + band_x;
+                            grid_map_values_f32[idx] /= band_max;
+                        }
+                    }
+                }
+                
+                // Apply temporal smoothing to avoid jarring movements
+                // Use different smoothing based on activity level
+                let smoothing_factor = if activity_level > 0.1 { 0.3 } else { 0.15 }; // Moderate smoothing
+                
+                if let Some(ref prev_grid) = self.prev_frequency_grid {
+                    for i in 0..grid_map_values_f32.len() {
+                        if activity_level > 0.05 {
+                            // Normal smoothing when there's some activity
+                            grid_map_values_f32[i] = prev_grid[i] * (1.0 - smoothing_factor) + 
+                                                   grid_map_values_f32[i] * smoothing_factor;
+                        } else {
+                            // Gentle decay when very low activity
+                            grid_map_values_f32[i] = prev_grid[i] * 0.95; // 5% decay per frame
+                        }
+                    }
+                } else if activity_level <= 0.05 {
+                    // If no previous grid and very low activity, start with zeros
+                    grid_map_values_f32.fill(0.0);
+                }
+                
+                // Store current grid for next frame
+                self.prev_frequency_grid = Some(grid_map_values_f32.clone());
             }
+            
             let frequency_grid_map_f64 = grid_map_values_f32.iter().map(|&x| x as f64).collect();
             // --- END FREQUENCY GRID MAP CALCULATION ---
 

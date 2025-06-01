@@ -37,5 +37,9 @@ message PrimaryFreq530State {
   repeated double beat_times     = 31;
   double last_beat_time          = 32;
   repeated uint32 quantized_bands = 40;
+  double spectral_centroid = 41;
   optional bytes spectrogram_png = 42;
+  repeated double chromagram = 43;
+  double beat_phase = 44;
+  repeated double frequency_grid_map = 45;
 }

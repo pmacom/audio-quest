@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AudioProcessor WebSocket Test</title>
+    <style>
+        body { font-family: monospace; background: #1a1a1a; color: #00ff00; padding: 20px; }
+        .status { margin: 10px 0; }
+        .data { background: #333; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { color: #ff0000; }
+        .success { color: #00ff00; }
+        .info { color: #ffff00; }
+    </style>
+</head>
+<body>
+    <h1>AudioProcessor WebSocket Test</h1>
+    <div id="status" class="status">Disconnected</div>
+    <div id="message-count" class="status">Messages received: 0</div>
+    <div id="latest-data" class="data">No data received yet...</div>
+
+    <script>
+        let messageCount = 0;
+        const statusDiv = document.getElementById('status');
+        const countDiv = document.getElementById('message-count');
+        const dataDiv = document.getElementById('latest-data');
+
+        const ws = new WebSocket('ws://localhost:8765');
+
+        ws.onopen = function(event) {
+            statusDiv.innerHTML = '<span class="success">Connected to AudioProcessor!</span>';
+        };
+
+        ws.onmessage = function(event) {
+            messageCount++;
+            countDiv.textContent = `Messages received: ${messageCount}`;
+            
+            // Display the current timestamp and data size
+            const now = new Date().toLocaleTimeString();
+            const dataSize = event.data.size || event.data.length;
+            dataDiv.innerHTML = `
+                <strong>Latest Update (${now}):</strong><br>
+                Data size: ${dataSize} bytes<br>
+                Type: ${typeof event.data}<br>
+                Message #${messageCount}
+            `;
+        };
+
+        ws.onerror = function(error) {
+            statusDiv.innerHTML = '<span class="error">WebSocket Error: ' + error + '</span>';
+        };
+
+        ws.onclose = function(event) {
+            statusDiv.innerHTML = '<span class="info">Connection closed</span>';
+        };
+    </script>
+</body>
+</html> 

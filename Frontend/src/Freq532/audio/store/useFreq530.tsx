@@ -125,11 +125,25 @@ export const useFreq530 = create<Freq530Store>((set, get) => {
             const obj = ProtoType.toObject(msg, { defaults: true }) as Partial<Freq530ValueMap>
             const nextValues = { ...get().values }
 
+            // Debug: Log the decoded object to see what fields we're actually receiving
+            if (counter > 45) {
+              console.log('Decoded proto object keys:', Object.keys(obj))
+              console.log('Looking for frequencyGridMap, found:', obj.frequencyGridMap)
+              console.log('Looking for frequency_grid_map, found:', (obj as any).frequency_grid_map)
+              console.log('Looking for frequencyGridMap length:', obj.frequencyGridMap?.length)
+              counter--
+            }
+
             for (const k of Freq530FieldKeys) {
               const value = obj[k]
               if (arrayFields.includes(k as any) && Array.isArray(value)) {
                 (nextValues as any)[k] = value
                 ;(get().refs[k] as React.RefObject<number[]>).current = value
+                
+                // Debug specifically for frequencyGridMap
+                if (k === 'frequencyGridMap' && Array.isArray(value) && value.length > 0) {
+                  console.log('FREQUENCY GRID MAP UPDATED:', value.length, 'values, first few:', value.slice(0, 5))
+                }
               } else if (typeof value === "number" && !arrayFields.includes(k as any)) {
                 // Sanitize special values
                 let safeValue = value
@@ -147,7 +161,9 @@ export const useFreq530 = create<Freq530Store>((set, get) => {
               }
             }
             set({ values: nextValues })
-          } catch {}
+          } catch (error) {
+            console.error('Error processing WebSocket message:', error)
+          }
         }
       })
     }

@@ -10,6 +10,7 @@ mod websocket {
     pub mod server;
 }
 mod state;
+mod tui;
 
 use std::sync::{Arc, Mutex};
 use tokio::sync::Mutex as TokioMutex;
@@ -76,6 +77,18 @@ fn select_update_rate() -> f64 {
     }
 }
 
+fn select_display_mode() -> bool {
+    println!("\nSelect display mode:");
+    println!("  [0] Terminal UI - Live updating dashboard with all audio data");
+    println!("  [1] Headless   - Run without display (WebSocket only)");
+    print!("Choose display mode by number: ");
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    let index: usize = input.trim().parse().unwrap_or(0);
+    index == 0
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // WebSocket server configuration
@@ -86,13 +99,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Shared state for connected clients
     let clients = Arc::new(TokioMutex::new(Vec::<futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>, Message>>::new()));
 
-    // Channel for sending messages from audio thread to async task
-    let (tx, mut rx) = mpsc::channel::<Vec<u8>>(100);
+    // Channel for sending messages from audio thread to async task (WebSocket)
+    let (ws_tx, mut ws_rx) = mpsc::channel::<Vec<u8>>(100);
+
+    // Channel for sending audio state to TUI
+    let (tui_tx, tui_rx) = mpsc::channel::<ProtoState>(100);
+
+    // Channel for sending client count updates to TUI
+    let (client_count_tx, client_count_rx) = mpsc::channel::<usize>(10);
 
     // Spawn async task to handle WebSocket sending
     let clients_clone = Arc::clone(&clients);
+    let client_count_tx_clone = client_count_tx.clone();
     tokio::spawn(async move {
-        while let Some(message) = rx.recv().await {
+        while let Some(message) = ws_rx.recv().await {
             let mut clients = clients_clone.lock().await;
             let mut new_clients = Vec::new();
             for mut client in clients.drain(..) {
@@ -101,19 +121,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     new_clients.push(client);
                 }
             }
+            let client_count = new_clients.len();
             *clients = new_clients;
+            
+            // Send client count update to TUI
+            let _ = client_count_tx_clone.send(client_count).await;
         }
     });
 
     // Audio configuration
     let device = select_input_device();
     let update_period = select_update_rate();
+    let show_tui = select_display_mode();
+
     let config = device.default_input_config().expect("No input config available");
 
     // Audio processor
     let processor: Arc<Mutex<AudioProcessor>> = Arc::new(Mutex::new(AudioProcessor::new()));
     let processor_clone: Arc<Mutex<AudioProcessor>> = Arc::clone(&processor);
-    let tx_clone = tx.clone();
+    let ws_tx_clone = ws_tx.clone();
+    let tui_tx_clone = tui_tx.clone();
+    
     // Throttle: shared last update time (as f64 seconds since epoch, in microseconds for atomicity)
     let last_update_time = Arc::new(AtomicU64::new(0));
     let last_update_time_clone = Arc::clone(&last_update_time);
@@ -162,9 +190,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut processor = processor_clone.lock().unwrap();
             if let Some(state) = processor.update_base_state(delta_time, &magnitudes, now) {
                 let proto_state = ProtoState::from(&state);
+                
+                // Send to WebSocket clients
                 let mut buf = Vec::new();
                 ProstMessage::encode(&proto_state, &mut buf).unwrap();
-                let _ = tx_clone.blocking_send(buf);
+                let _ = ws_tx_clone.blocking_send(buf);
+                
+                // Send to TUI if enabled
+                if show_tui {
+                    let _ = tui_tx_clone.blocking_send(proto_state);
+                }
             }
         },
         |err| eprintln!("Audio stream error: {}", err),
@@ -174,10 +209,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start audio stream
     stream.play()?;
 
-    // WebSocket server loop
-    while let Ok((stream, _)) = listener.accept().await {
-        let clients_clone = Arc::clone(&clients);
-        tokio::spawn(websocket::server::handle_connection(stream, clients_clone));
+    // Spawn WebSocket server as a separate task (always runs regardless of TUI mode)
+    let clients_for_server = Arc::clone(&clients);
+    let client_count_tx_for_server = client_count_tx.clone();
+    tokio::spawn(async move {
+        // WebSocket server loop
+        while let Ok((stream, _)) = listener.accept().await {
+            let clients_clone = Arc::clone(&clients_for_server);
+            let count_tx = client_count_tx_for_server.clone();
+            tokio::spawn(websocket::server::handle_connection(stream, clients_clone, count_tx));
+        }
+    });
+
+    // Start TUI or run headless
+    if show_tui {
+        println!("Starting Terminal UI... Press 'q' or ESC to quit.");
+        println!("WebSocket server is running in the background on ws://127.0.0.1:8765");
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await; // Brief pause
+        
+        // Run TUI (WebSocket server runs independently in background)
+        if let Err(e) = tui::run_tui(tui_rx, client_count_rx).await {
+            eprintln!("TUI error: {}", e);
+        }
+    } else {
+        println!("Running in headless mode. WebSocket server only.");
+        // Keep the main task alive
+        tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
+        println!("Shutting down...");
     }
 
     Ok(())
