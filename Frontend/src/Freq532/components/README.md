@@ -20,8 +20,8 @@ A sphere that pulses and glows when beats are detected.
 
 **Props:**
 - `baseScale` (default: 1): Base scale of the sphere
-- `maxScaleMultiplier` (default: 1.5): Maximum scale increase on beat
-- `emissiveMultiplier` (default: 0.8): Intensity of glow effect
+- `maxScaleMultiplier` (default: 1.5): Maximum scale multiplier for pulses
+- `emissiveMultiplier` (default: 0.8): How much the sphere glows
 - `decaySpeed` (default: 5): How fast the pulse decays
 - `color` (default: "red"): Base color of the sphere
 - `emissiveColor` (default: "red"): Glow color
@@ -54,14 +54,32 @@ A sphere that changes color based on spectral flux (rate of spectral change).
 **Data Source:** `spectralFlux`
 
 ### BeatPhaseAnimator
-A cube that rotates and oscillates based on the calculated beat phase.
+
+A cube that oscillates based on the calculated beat phase and timing.
 
 **Props:**
 - `size` (default: 0.5): Size of the cube
-- `oscillationAmplitude` (default: 0.5): Vertical oscillation range
+- `oscillationAmplitude` (default: 0.5): How much the cube moves
 - `color` (default: "lightgreen"): Color of the cube
 
-**Data Sources:** `time`, `bps`, `lastBeatTime` (calculates phase internally)
+**Data Source:** `time`, `bps` (calculates its own phase from beat timing)
+
+### DeformablePlane
+A dynamic, deformable surface that creates wave-like terrains based on the audio's spectral content.
+
+**Props:**
+- `width` (default: 10): Width of the plane
+- `height` (default: 10): Height of the plane
+- `segmentsX` (default: 15): Number of width segments (more = higher detail)
+- `segmentsY` (default: 15): Number of height segments (more = higher detail)
+- `maxDisplacement` (default: 2): Maximum displacement height for vertices
+- `lerpFactor` (default: 0.1): Smoothing factor for deformation
+- `color` (default: "deepskyblue"): Color of the plane
+- `wireframe` (default: false): Whether to show as wireframe
+
+**Data Source:** `frequencyGridMap` (256-value array representing a 16x16 grid of audio energy)
+
+**Note:** The DeformablePlane maps a 1D frequency grid array to a 2D plane surface. Each vertex of the plane corresponds to a value in the frequency grid, creating dynamic terrain that responds to different frequency bands across the audio spectrum.
 
 ### DemoAudioVisualizersLayout
 A demonstration layout showing all visualizers arranged in a 3D space.
@@ -84,7 +102,7 @@ function MyScene() {
 
 ### Demo Layout
 ```jsx
-import { DemoAudioVisualizersLayout } from '@/Freq532/components';
+import { DemoAudioVisualizersLayout, DeformablePlane } from '@/Freq532/components';
 
 function AudioVisualizationDemo() {
   return (
@@ -92,6 +110,14 @@ function AudioVisualizationDemo() {
       <ambientLight intensity={0.5} />
       <directionalLight position={[5, 5, 5]} intensity={1} />
       <DemoAudioVisualizersLayout />
+
+      <DeformablePlane 
+        position={[0, 0, 0]}
+        width={8}
+        height={6}
+        maxDisplacement={2}
+        wireframe={true}
+      />
     </Canvas>
   );
 }

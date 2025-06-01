@@ -14,6 +14,9 @@ export type { SpectralFluxColorShiftProps } from './SpectralCentroidColorShift';
 export { BeatPhaseAnimator } from './BeatPhaseAnimator';
 export type { BeatPhaseAnimatorProps } from './BeatPhaseAnimator';
 
+export { DeformablePlane } from './DeformablePlane';
+export type { DeformablePlaneProps } from './DeformablePlane';
+
 export { DemoAudioVisualizersLayout } from './DemoAudioVisualizersLayout';
 export type { DemoAudioVisualizersLayoutProps } from './DemoAudioVisualizersLayout';
 
