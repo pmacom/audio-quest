@@ -41,5 +41,5 @@ message PrimaryFreq530State {
   optional bytes spectrogram_png = 42;
   repeated double chromagram = 43; // 12-bin pitch class profile
   double beat_phase = 44; // Progress to next beat (0.0 to 1.0)
-+  repeated double frequency_grid_map = 45; // For plane deformation, e.g., 16x16=256 values
+  repeated double frequency_grid_map = 45; // For plane deformation, e.g., 16x16=256 values
 }

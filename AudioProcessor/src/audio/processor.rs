@@ -283,7 +283,8 @@ impl AudioProcessor {
                 spectrogram_png: None,
                 spectral_centroid: 0.0,
                 chromagram: vec![0.0; 12], // Default for empty data
-+                beat_phase: 0.0, // Default for empty data
+                beat_phase: 0.0, // Default for empty data
+                frequency_grid_map: vec![0.0; 256], // Default 16x16 grid
             }
         } else {
             let sample_rate = 44100.0;
@@ -448,17 +449,17 @@ impl AudioProcessor {
             // Update bps
             self.update_bps();
 
-+            // --- BEGIN BEAT PHASE CALCULATION ---
-+            let mut beat_phase_value = 0.0;
-+            if self.bps > 0.1 && self.last_beat_time.is_finite() && self.last_beat_time > 0.0 {
-+                let beat_duration = 1.0 / self.bps as f64;
-+                let time_since_last_beat = now - self.last_beat_time;
-+                if time_since_last_beat >= 0.0 {
-+                    beat_phase_value = (time_since_last_beat / beat_duration) % 1.0;
-+                }
-+            }
-+            // --- END BEAT PHASE CALCULATION ---
-+
+            // --- BEGIN BEAT PHASE CALCULATION ---
+            let mut beat_phase_value = 0.0;
+            if self.bps > 0.1 && self.last_beat_time.is_finite() && self.last_beat_time > 0.0 {
+                let beat_duration = 1.0 / self.bps as f64;
+                let time_since_last_beat = now - self.last_beat_time;
+                if time_since_last_beat >= 0.0 {
+                    beat_phase_value = (time_since_last_beat / beat_duration) % 1.0;
+                }
+            }
+            // --- END BEAT PHASE CALCULATION ---
+
             // Compute and store quantized bands (32 log bands, quantized to u8, rolling max)
             self.quantized_bands = self.compute_quantized_bands_log_rolling(frequency_data, 32, sample_rate);
 
@@ -501,7 +502,8 @@ impl AudioProcessor {
                 spectrogram_png: Some(png_bytes),
                 spectral_centroid: spectral_centroid_value as f64,
                 chromagram: chromagram_values.iter().map(|&x| x as f64).collect(),
-+                beat_phase: beat_phase_value,
+                beat_phase: beat_phase_value,
+                frequency_grid_map: vec![0.0; 256], // Default 16x16 grid
             }
         };
 
@@ -875,7 +877,8 @@ impl From<&crate::state::PrimaryFreq530State> for ProtoState {
             spectrogram_png: s.spectrogram_png.clone(),
             spectral_centroid: s.spectral_centroid,
             chromagram: s.chromagram.clone(),
-+            beat_phase: s.beat_phase,
+            beat_phase: s.beat_phase,
+            frequency_grid_map: s.frequency_grid_map.clone(),
         }
     }
 }
