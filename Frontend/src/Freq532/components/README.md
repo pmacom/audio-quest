@@ -26,37 +26,35 @@ A sphere that pulses and glows when beats are detected.
 - `color` (default: "red"): Base color of the sphere
 - `emissiveColor` (default: "red"): Glow color
 
-**Data Source:** `beatIntensity`
+**Data Sources:** `beatIntensity`, `lastBeatTime`
 
 ### FrequencyBandsDisplay
-A series of bars that represent different frequency bands, creating a classic spectrum analyzer look.
+A row of vertical bars representing energy across frequency bands.
 
 **Props:**
-- `maxHeight` (default: 3): Maximum height of the bars
-- `spacing` (default: 0.2): Space between bars
-- `barWidth` (default: 0.15): Width of each bar
-- `barDepth` (default: 0.15): Depth of each bar
-- `lerpFactor` (default: 0.2): Smoothing factor
-- `minHeight` (default: 0.1): Minimum height of bars
+- `maxHeight` (default: 5): Maximum height of bars
+- `spacing` (default: 0.5): Space between bars
+- `barWidth` (default: 0.4): Width of each bar
+- `barDepth` (default: 0.4): Depth of each bar
+- `lerpFactor` (default: 0.2): Animation smoothing
+- `minHeight` (default: 0.01): Minimum bar height
 
-**Data Source:** `low`, `mid`, `high`, `kick`, `snare`, `hihat` (6 bands total)
+**Data Source:** `quantizedBands` (array of 32 frequency band values)
 
 ### SpectralFluxColorShift
-A sphere that changes color based on the spectral flux of the audio.
+A sphere that changes color based on spectral flux (rate of spectral change).
 
 **Props:**
-- `radius` (default: 0.7): Radius of the sphere
-- `segments` (default: 32): Number of geometry segments
-- `rings` (default: 32): Number of geometry rings
+- `radius` (default: 0.7): Size of the sphere
 - `lerpFactor` (default: 0.1): Color transition smoothing
 - `saturation` (default: 0.8): Color saturation
 - `lightness` (default: 0.5): Color lightness
-- `minHue` (default: 0.0): Minimum hue value (red)
-- `maxHue` (default: 0.7): Maximum hue value (violet)
+- `minHue`/`maxHue` (default: 0.0/0.7): Hue range for color mapping
 
 **Data Source:** `spectralFlux`
 
 ### BeatPhaseAnimator
+
 A cube that oscillates based on the calculated beat phase and timing.
 
 **Props:**
@@ -112,6 +110,7 @@ function AudioVisualizationDemo() {
       <ambientLight intensity={0.5} />
       <directionalLight position={[5, 5, 5]} intensity={1} />
       <DemoAudioVisualizersLayout />
+
       <DeformablePlane 
         position={[0, 0, 0]}
         width={8}
