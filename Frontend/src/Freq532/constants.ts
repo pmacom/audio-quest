@@ -14,4 +14,5 @@ export const Freq530FieldKeys = [
   'amplitudeDynamic', 'rawAmplitudeDynamic',
   'spectralFlux', 'beatTimes', 'lastBeatTime', 'quantizedBands',
   'spectogram',
+  'spectralCentroid', 'chromagram', 'beatPhase', 'frequencyGridMap',
 ] as const

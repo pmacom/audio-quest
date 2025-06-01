@@ -41,6 +41,12 @@ export const Freq530FieldTypes: Record<typeof Freq530FieldKeys[number], Freq530F
   lastBeatTime: Freq530FieldType.Number,
   quantizedBands: Freq530FieldType.NumberArrayBars,
   spectogram: Freq530FieldType.Spectogram,
+  
+  // New audio fields
+  spectralCentroid: Freq530FieldType.Zero1,
+  chromagram: Freq530FieldType.NumberArray,
+  beatPhase: Freq530FieldType.Zero1,
+  frequencyGridMap: Freq530FieldType.NumberArray,
 }
 
 export type Freq530Field = typeof Freq530FieldKeys[number]
@@ -57,28 +63,38 @@ export interface Freq530Store {
 
 let counter = 50
 
-// we need a ValueMap that gives beatTimes an array:
+// we need a ValueMap that gives array fields their proper types:
 export type Freq530ValueMap = {
   [K in Freq530Field]:
-    K extends 'beatTimes' | 'quantizedBands' ? number[] : number
+    K extends 'beatTimes' | 'quantizedBands' | 'chromagram' | 'frequencyGridMap' ? number[] : number
 }
 
 // refs must hold the same types:
 export type Freq530RefMap = {
   [K in Freq530Field]:
     React.RefObject<
-      K extends 'beatTimes' | 'quantizedBands' ? number[] : number
+      K extends 'beatTimes' | 'quantizedBands' | 'chromagram' | 'frequencyGridMap' ? number[] : number
     >
 }
 
 export const useFreq530 = create<Freq530Store>((set, get) => {
+  const arrayFields = ['beatTimes', 'quantizedBands', 'chromagram', 'frequencyGridMap'] as const
+  
   const values = Object.fromEntries(
-    Freq530FieldKeys.map(k => [k, (k === "beatTimes" || k === "quantizedBands") ? [] : 0])
+    Freq530FieldKeys.map(k => [k, arrayFields.includes(k as any) ? [] : 0])
   ) as unknown as Freq530ValueMap
+  
   const refs = Object.fromEntries(
-    Freq530FieldKeys.map(k => [k, (k === "beatTimes" || k === "quantizedBands") ? createRef<number[]>() : createRef<number>()])
+    Freq530FieldKeys.map(k => [k, arrayFields.includes(k as any) ? createRef<number[]>() : createRef<number>()])
   ) as unknown as Freq530RefMap
-  for (const k of Freq530FieldKeys) refs[k].current = (k === "beatTimes" || k === "quantizedBands") ? [] : 0
+  
+  for (const k of Freq530FieldKeys) {
+    if (arrayFields.includes(k as any)) {
+      (refs[k] as React.RefObject<number[]>).current = []
+    } else {
+      (refs[k] as React.RefObject<number>).current = 0
+    }
+  }
 
   return {
     connectionState: 'idle',
@@ -111,26 +127,25 @@ export const useFreq530 = create<Freq530Store>((set, get) => {
 
             for (const k of Freq530FieldKeys) {
               const value = obj[k]
-              if ((k === "beatTimes" || k === "quantizedBands") && Array.isArray(value)) {
-                nextValues[k] = value
-                get().refs[k].current = value
-              } else if (typeof value === "number" && k !== "beatTimes" && k !== "quantizedBands") {
+              if (arrayFields.includes(k as any) && Array.isArray(value)) {
+                (nextValues as any)[k] = value
+                ;(get().refs[k] as React.RefObject<number[]>).current = value
+              } else if (typeof value === "number" && !arrayFields.includes(k as any)) {
                 // Sanitize special values
                 let safeValue = value
                 if (!isFinite(value) || isNaN(value)) {
                   safeValue = 0
                 }
-                nextValues[k] = safeValue
+                (nextValues as any)[k] = safeValue
                 if(counter > 0) {
-                  console.log('Decoded proto object:', obj)
-                  console.log('NOTICE THIS', k, value)
+                  // console.log('Decoded proto object:', obj)
+                  // console.log('NOTICE THIS', k, value)
                   counter--
                 }
                 // console.log(`setting ${k} to ${safeValue}`)
-                get().refs[k].current = safeValue
+                ;(get().refs[k] as React.RefObject<number>).current = safeValue
               }
             }
-
             set({ values: nextValues })
           } catch {}
         }

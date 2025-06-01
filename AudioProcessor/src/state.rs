@@ -42,4 +42,5 @@ pub struct PrimaryFreq530State {
     pub spectral_centroid: f64,
     pub chromagram: Vec<f64>,
     pub beat_phase: f64,
+    pub frequency_grid_map: Vec<f64>,
 } 
