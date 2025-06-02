@@ -5,6 +5,8 @@ import { FrequencyBandsDisplay } from './FrequencyBandsDisplay';
 import { SpectralFluxColorShift } from './SpectralCentroidColorShift';
 import { BeatPhaseAnimator } from './BeatPhaseAnimator';
 import { DeformablePlane } from './DeformablePlane';
+import { DeformableDisk } from './DeformableDisk';
+import { DancingMountains } from './DancingMountains';
 
 export interface DemoAudioVisualizersLayoutProps {
   // Optional props for positioning the entire layout
@@ -55,24 +57,60 @@ export function DemoAudioVisualizersLayout({
       {/* Bottom row - Large deformable plane */}
       <DeformablePlane 
         position={[0, -2, 0]} 
-        width={12}z
+        width={12}
         height={8}
-        segmentsX={31}
-        segmentsY={23}
+        segmentsX={63}
+        segmentsY={47}
         maxDisplacement={3.5}
+        frequencyMultiplier={2.0}
         color="deepskyblue"
         wireframe={false}
       />
 
-      {/* Optional wireframe version for comparison */}
-      <DeformablePlane 
+      {/* New Deformable Disk with 4 quadrants */}
+      <DeformableDisk 
         position={[0, -6, 0]} 
-        width={8}
-        height={6}
-        segmentsX={15}
-        segmentsY={11}
-        maxDisplacement={1.0}
+        radius={4}
+        segments={128}
+        maxDisplacement={2.5}
+        frequencyMultiplier={4.0}
+        quadrantRotation={Math.PI / 6} // 30 degree rotation between quadrants
+        wireframe={false}
+        useVertexColors={true}
+      />
+
+      {/* Optional wireframe disk for comparison */}
+      <DeformableDisk 
+        position={[8, -6, 0]} 
+        radius={3}
+        segments={96}
+        maxDisplacement={1.5}
+        frequencyMultiplier={3.0}
+        quadrantRotation={Math.PI / 4} // 45 degree rotation between quadrants
+        wireframe={true}
+        useVertexColors={false}
         color="cyan"
+      />
+
+      {/* Dancing Mountains - positioned to the right */}
+      <DancingMountains 
+        position={[15, -4, 0]} 
+        mountainCount={8}
+        baseSize={0.8}
+        maxHeight={3.0}
+        spreadRadius={6}
+        animationIntensity={1.5}
+        wireframe={false}
+      />
+
+      {/* Optional wireframe mountains for comparison */}
+      <DancingMountains 
+        position={[25, -4, 0]} 
+        mountainCount={6}
+        baseSize={0.6}
+        maxHeight={2.5}
+        spreadRadius={4}
+        animationIntensity={2.0}
         wireframe={true}
       />
     </group>
