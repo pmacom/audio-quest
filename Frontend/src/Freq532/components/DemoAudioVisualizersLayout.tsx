@@ -55,11 +55,11 @@ export function DemoAudioVisualizersLayout({
       {/* Bottom row - Large deformable plane */}
       <DeformablePlane 
         position={[0, -2, 0]} 
-        width={12}
+        width={12}z
         height={8}
         segmentsX={31}
         segmentsY={23}
-        maxDisplacement={1.5}
+        maxDisplacement={3.5}
         color="deepskyblue"
         wireframe={false}
       />

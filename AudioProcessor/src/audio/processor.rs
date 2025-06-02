@@ -476,28 +476,40 @@ impl AudioProcessor {
                     0.0
                 };
                 
-                // Define logarithmic frequency ranges for more musical mapping
-                let min_freq = 20.0; // Sub-bass
-                let max_freq = nyquist; // Nyquist frequency
+                // Define logarithmic frequency bands for better distribution
+                // Instead of linear bands, use logarithmic scale to better represent human hearing
+                let mut frequency_bands = Vec::new();
+                for x in 0..grid_size {
+                    // Logarithmic frequency mapping: 20Hz to 20kHz
+                    let min_freq = 20.0f32;
+                    let max_freq = 20000.0f32;
+                    let freq_ratio = x as f32 / (grid_size - 1) as f32;
+                    
+                    // Logarithmic scaling for more even distribution
+                    let start_freq = min_freq * (max_freq / min_freq).powf(freq_ratio);
+                    let end_freq = if x < grid_size - 1 {
+                        min_freq * (max_freq / min_freq).powf((x + 1) as f32 / (grid_size - 1) as f32)
+                    } else {
+                        max_freq
+                    };
+                    
+                    // Convert frequencies to bin indices
+                    let start_bin = ((start_freq / bin_width) as usize).min(frequency_data.len() - 1);
+                    let end_bin = ((end_freq / bin_width) as usize).min(frequency_data.len() - 1);
+                    
+                    frequency_bands.push((start_bin, end_bin, start_freq, end_freq));
+                }
                 
                 for grid_y in 0..grid_size {
                     for grid_x in 0..grid_size {
-                        let grid_index = grid_y * grid_size + grid_x;
-                        
-                        // Map X coordinate to logarithmic frequency range
-                        let freq_ratio = grid_x as f32 / (grid_size - 1) as f32;
-                        let start_freq = min_freq * (max_freq / min_freq).powf(freq_ratio);
-                        let end_freq = min_freq * (max_freq / min_freq).powf((freq_ratio + 1.0 / grid_size as f32).min(1.0));
-                        
-                        // Convert frequencies to FFT bin indices
-                        let start_bin = (start_freq / bin_width).floor() as usize;
-                        let end_bin = (end_freq / bin_width).ceil() as usize;
+                        // Map X coordinate to frequency band
+                        let (start_bin, end_bin, start_freq, end_freq) = frequency_bands[grid_x];
                         
                         // Extract magnitude for this frequency band
                         let mut band_magnitude = 0.0f32;
                         let mut bin_count = 0;
                         
-                        for bin in start_bin..end_bin.min(frequency_data.len()) {
+                        for bin in start_bin..=end_bin.min(frequency_data.len() - 1) {
                             band_magnitude += frequency_data[bin];
                             bin_count += 1;
                         }
@@ -523,14 +535,13 @@ impl AudioProcessor {
                                     let fundamental_freq = start_freq;
                                     let mut harmonic_energy = 0.0;
                                     
-                                    // Check 2nd and 3rd harmonics
+                                    // Add harmonic content analysis
                                     for harmonic in [2.0, 3.0] {
                                         let harmonic_freq = fundamental_freq * harmonic;
-                                        if harmonic_freq < max_freq {
-                                            let harmonic_bin = (harmonic_freq / bin_width) as usize;
-                                            if harmonic_bin < frequency_data.len() {
-                                                harmonic_energy += frequency_data[harmonic_bin];
-                                            }
+                                        let harmonic_bin = (harmonic_freq / bin_width) as usize;
+                                        if harmonic_bin < frequency_data.len() && harmonic_bin <= end_bin {
+                                            let harmonic_magnitude = frequency_data[harmonic_bin];
+                                            harmonic_energy += harmonic_magnitude * 0.3; // Weight harmonics lower
                                         }
                                     }
                                     harmonic_energy * 0.2 * activity_level
@@ -562,12 +573,12 @@ impl AudioProcessor {
                                 // Always include base frequency, add spectral change emphasis
                                 let flux_enhancement = if let Some(ref prev_bins) = self.prev_fft_bins {
                                     let mut local_flux = 0.0;
-                                    for bin in start_bin..end_bin.min(frequency_data.len().min(prev_bins.len())) {
+                                    for bin in start_bin..=end_bin.min(frequency_data.len() - 1).min(prev_bins.len() - 1) {
                                         let current = frequency_data[bin].max(0.0);
                                         let previous = prev_bins[bin].max(0.0);
                                         local_flux += (current - previous).max(0.0);
                                     }
-                                    local_flux / (end_bin - start_bin).max(1) as f32
+                                    local_flux / (end_bin - start_bin + 1).max(1) as f32
                                 } else { 0.0 };
                                 
                                 // Add mid/high frequency emphasis for top rows
@@ -582,7 +593,7 @@ impl AudioProcessor {
                             _ => final_magnitude = band_magnitude,
                         }
                         
-                        grid_map_values_f32[grid_index] = final_magnitude;
+                        grid_map_values_f32[grid_y * grid_size + grid_x] = final_magnitude;
                     }
                 }
                 
