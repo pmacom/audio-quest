@@ -1,3 +1,0 @@
-Notes:
-
-@uniforms.ts can we please update our uniforms.ts to reflect the information in @useFreq530.tsx ? The schema of the ShaderUniformShape should still be respected, however the values of ShaderDefaultSettings will focus on adding the values from useFreq530. Specifically 
