@@ -1,5 +1,4 @@
 use crate::state::PrimaryFreq530State;
-use prost::Message;
 use image::{ImageBuffer, Rgb};
 use std::io::Cursor;
 
@@ -51,19 +50,20 @@ impl HistoryState {
         }
     }
 
-    pub fn update_min_max(&mut self, new_value: f32) {
-        if new_value > self.max {
-            self.max = new_value;
+    pub fn update_min_max(&mut self) {
+        let values = self.buffer.values();
+        let mut min_val = f32::INFINITY;
+        let mut max_val = f32::NEG_INFINITY;
+        for &v in values {
+            if v < min_val {
+                min_val = v;
+            }
+            if v > max_val {
+                max_val = v;
+            }
         }
-        if new_value < self.min {
-            self.min = new_value;
-        }
-        let old_value = self.buffer.values()[0];
-        if old_value == self.min || old_value == self.max {
-            let values = self.buffer.values();
-            self.min = values.iter().copied().fold(f32::INFINITY, f32::min).min(new_value);
-            self.max = values.iter().copied().fold(f32::NEG_INFINITY, f32::max).max(new_value);
-        }
+        self.min = min_val;
+        self.max = max_val;
     }
 }
 
@@ -83,6 +83,7 @@ pub struct AudioProcessor {
     pub prev_kick: f32,
     pub prev_snare: f32,
     pub prev_hihat: f32,
+    pub prev_vocal: f32,
     pub prev_amplitude: f32,
     pub prev_raw_amplitude: f32,
     pub snare_average: f32,
@@ -159,6 +160,7 @@ impl AudioProcessor {
             prev_kick: 0.0,
             prev_snare: 0.0,
             prev_hihat: 0.0,
+            prev_vocal: 0.0,
             prev_amplitude: 0.0,
             prev_raw_amplitude: 0.0,
             snare_average: 0.0,
@@ -414,6 +416,13 @@ impl AudioProcessor {
             let raw_amplitude_dynamic = dynamic_normalize_with_sharpness(raw_amplitude as f32, &self.raw_amplitude_history, sharpness);
             self.raw_amplitude_dynamic_smoothed = self.raw_amplitude_dynamic_smoothed * smoothing + raw_amplitude_dynamic * (1.0 - smoothing);
 
+            // Compute vocal likelihood
+            let vocal_raw = self.compute_vocal_likelihood(frequency_data);
+            self.vocal_history.buffer.push(vocal_raw);
+            self.vocal_history.update_min_max();
+            let vocal_likelihood = Self::normalize(vocal_raw, &self.vocal_history);
+            self.prev_vocal = vocal_likelihood;
+
             // --- BEGIN BEAT DETECTION PIPELINE ---
             // Calculate spectral flux
             self.spectral_flux = self.calculate_spectral_flux(frequency_data, self.prev_fft_bins.as_deref());
@@ -510,7 +519,7 @@ impl AudioProcessor {
                 kick: kick as f64,
                 snare: snare as f64,
                 hihat: hihat as f64,
-                vocal_likelihood: 0.0,
+                vocal_likelihood: vocal_likelihood as f64,
                 amplitude: amplitude as f64,
                 raw_amplitude: raw_amplitude as f64,
                 beat_intensity: self.beat_intensity as f64,
@@ -590,7 +599,7 @@ impl AudioProcessor {
     fn apply_gain_and_history(value: f32, gain: f32, history: &mut HistoryState, target_min: f32, target_max: f32, gain_adjust_rate: f32) -> GainState {
         let gained_value = value * gain;
         history.buffer.push(gained_value);
-        history.update_min_max(gained_value);
+        history.update_min_max();
         let normalized_value = Self::normalize(gained_value, history);
         let new_gain = if normalized_value < target_min {
             gain + gain_adjust_rate
@@ -734,16 +743,13 @@ impl AudioProcessor {
         }
     }
     fn update_beat_intensity(&mut self, is_beat_candidate: bool, combined_ratio: f32, time_since_last_beat: f64) -> f32 {
-        let intensity = if is_beat_candidate {
-            (self.beat_intensity
-                * (1.0 - crate::audio::constants::CONSTANTS.beat_detection_parameters.beat_decay_rate * time_since_last_beat as f32)
-                + combined_ratio * 0.2)
-                .clamp(crate::audio::constants::CONSTANTS.beat_detection_parameters.min_beat_intensity, 1.0)
-        } else {
-            (self.beat_intensity
-                * (1.0 - crate::audio::constants::CONSTANTS.beat_detection_parameters.beat_decay_rate * 0.5 * time_since_last_beat as f32))
-                .max(crate::audio::constants::CONSTANTS.beat_detection_parameters.min_beat_intensity)
-        };
+        let decay = crate::audio::constants::CONSTANTS.beat_detection_parameters.beat_decay_rate;
+        let mut intensity = self.beat_intensity * (1.0 - decay * time_since_last_beat as f32);
+        if is_beat_candidate {
+            let amp_factor = self.amplitude_dynamic_smoothed;
+            intensity += combined_ratio * amp_factor * 0.4;
+        }
+        intensity = intensity.clamp(crate::audio::constants::CONSTANTS.beat_detection_parameters.min_beat_intensity, 1.0);
         self.beat_intensity = intensity;
         intensity
     }
@@ -836,6 +842,16 @@ impl AudioProcessor {
             / values.len() as f32;
         (variance / crate::audio::constants::CONSTANTS.vocal_max_variance).min(1.0)
     }
+
+    fn compute_vocal_likelihood(&self, fft_bins: &[f32]) -> f32 {
+        let harmonic_score = self.get_harmonic_score(fft_bins);
+        let mid_variance = self.calculate_mid_variance();
+        let mid_dynamic = self.mid_dynamic_smoothed;
+        let raw_score = harmonic_score * crate::audio::constants::CONSTANTS.vocal_harmonic_weight
+            + mid_dynamic * crate::audio::constants::CONSTANTS.vocal_mid_weight
+            + mid_variance * crate::audio::constants::CONSTANTS.vocal_variance_weight;
+        raw_score.clamp(0.0, 1.0)
+    }
     /// Compute N logarithmic frequency bands from FFT data, quantize to u8 (0-255), with rolling max normalization
     fn compute_quantized_bands_log_rolling(
         &mut self,
@@ -918,6 +934,7 @@ pub mod proto_mod {
 }
 pub use proto_mod::PrimaryFreq530State as ProtoState;
 
+#[allow(dead_code)]
 fn dynamic_normalize(value: f32, history: &HistoryState) -> f32 {
     let values = history.buffer.values();
     let n = values.len() as f32;
