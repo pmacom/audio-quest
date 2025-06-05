@@ -12,6 +12,9 @@ export interface VideoData {
   videoElement: HTMLVideoElement;
   canvas: HTMLCanvasElement;
   context: CanvasRenderingContext2D;
+  // temporary canvas for reverse playback capture
+  tempCanvas: HTMLCanvasElement;
+  tempContext: CanvasRenderingContext2D;
   texture: THREE.CanvasTexture;
   frameBuffer: ImageData[];
   duration: number;
@@ -45,17 +48,21 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
     if (get().videos[name]) return;
 
     const videoElement = document.createElement('video');
+    videoElement.preload = 'auto';
     videoElement.crossOrigin = 'anonymous';
     videoElement.src = src;
     videoElement.loop = false;
     videoElement.muted = true;
     videoElement.playsInline = true;
     videoElement.autoplay = false;
+    videoElement.setAttribute('playsinline', '');
     videoElement.style.display = 'none';
     document.body.appendChild(videoElement);
 
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d')!;
+    const context = canvas.getContext('2d', { willReadFrequently: true })!;
+    const tempCanvas = document.createElement('canvas');
+    const tempContext = tempCanvas.getContext('2d', { willReadFrequently: true })!;
     const frameBuffer: ImageData[] = [];
 
     try {
@@ -64,8 +71,12 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
         videoElement.addEventListener('error', (e) => reject(new Error(`Video load error: ${e.message}`)), { once: true });
       });
 
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
+      const maxDim = 640;
+      const scale = Math.min(1, maxDim / Math.max(videoElement.videoWidth, videoElement.videoHeight));
+      canvas.width = Math.round(videoElement.videoWidth * scale);
+      canvas.height = Math.round(videoElement.videoHeight * scale);
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
 
       const texture = new THREE.CanvasTexture(canvas);
       texture.minFilter = THREE.LinearFilter;
@@ -75,7 +86,7 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
       texture.colorSpace = THREE.SRGBColorSpace;
 
       const aspectRatio = new THREE.Vector2(
-        videoElement.videoWidth / videoElement.videoHeight,
+        canvas.width / canvas.height,
         1
       );
 
@@ -83,6 +94,8 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
         videoElement,
         canvas,
         context,
+        tempCanvas,
+        tempContext,
         texture,
         frameBuffer,
         duration: videoElement.duration,
@@ -109,11 +122,12 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
   removeVideo: (name: string) => {
     const videoRef = get().videos[name];
     if (videoRef && videoRef.current) {
-      const { videoElement, texture, canvas } = videoRef.current;
+      const { videoElement, texture, canvas, tempCanvas } = videoRef.current;
       videoElement.pause();
       videoElement.remove();
       texture.dispose();
       canvas.remove();
+      tempCanvas.remove();
       set((state) => {
         const { [name]: _, ...remainingVideos } = state.videos;
         return { videos: remainingVideos };
@@ -133,21 +147,15 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
           const totalFrames = Math.floor(videoElement.duration * frameRate);
           let frameCount = 0;
 
-          const targetWidth = 640;
-          const targetHeight = Math.round((targetWidth / videoElement.videoWidth) * videoElement.videoHeight);
-          const tempCanvas = document.createElement('canvas');
-          tempCanvas.width = targetWidth;
-          tempCanvas.height = targetHeight;
-          const tempContext = tempCanvas.getContext('2d')!;
-
+          const { tempCanvas, tempContext } = videoRef.current!;
           const originalTime = videoElement.currentTime;
 
           while (frameCount < totalFrames) {
             videoElement.currentTime = frameCount * frameDuration;
             await new Promise<void>((resolve) => {
               videoElement.addEventListener('seeked', () => {
-                tempContext.drawImage(videoElement, 0, 0, targetWidth, targetHeight);
-                frameBuffer.push(tempContext.getImageData(0, 0, targetWidth, targetHeight));
+                tempContext.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
+                frameBuffer.push(tempContext.getImageData(0, 0, tempCanvas.width, tempCanvas.height));
                 frameCount++;
                 resolve();
               }, { once: true });
@@ -156,7 +164,6 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
           }
 
           videoElement.currentTime = originalTime;
-          tempCanvas.remove();
         };
 
         captureFrames();
@@ -185,12 +192,9 @@ export const useVideoStore = create<VideoStore>((set, get) => ({
 
           if (frameIndex >= 0 && frameIndex < frameBuffer.length) {
             context.clearRect(0, 0, canvas.width, canvas.height);
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = frameBuffer[frameIndex].width;
-            tempCanvas.height = frameBuffer[frameIndex].height;
-            tempCanvas.getContext('2d')!.putImageData(frameBuffer[frameIndex], 0, 0);
+            const { tempCanvas, tempContext } = videoRef.current!;
+            tempContext.putImageData(frameBuffer[frameIndex], 0, 0);
             context.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
-            tempCanvas.remove();
             texture.needsUpdate = true;
           }
         } else {
