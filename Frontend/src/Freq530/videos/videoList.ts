@@ -155,4 +155,16 @@ export const VIDEO_PATHS_RELATIVE = [
   "/koshi/Arrival__00019.mp4",
 ]
 
-export const VIDEO_PATHS = VIDEO_PATHS_RELATIVE.map(path => filepathPrefix + path)
+export interface VideoSourceEntry {
+  src: string
+  bounce?: boolean
+}
+
+export const VIDEO_PATHS = VIDEO_PATHS_RELATIVE.map(
+  path => filepathPrefix + path
+)
+
+export const VIDEO_SOURCES: VideoSourceEntry[] = VIDEO_PATHS_RELATIVE.map(path => ({
+  src: filepathPrefix + path,
+  bounce: false,
+}))

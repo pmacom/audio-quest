@@ -3,15 +3,15 @@ import { gsap } from 'gsap';
 import TripVideoPlane from './TripVideoPlane';
 import { useInterval } from 'usehooks-ts';
 import { shuffle } from 'fast-shuffle';
+import { VideoSourceEntry } from './videoList';
 
 interface TripSequenceShufflerProps {
-  videos: string[];
+  videos: VideoSourceEntry[];
   masks: string[];
   videoHoldDuration?: number;
   videoTransitionDuration?: number;
   maskHoldDuration?: number;
   maskTransitionDuration?: number;
-  amplitude?: number;
 }
 
 const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
@@ -21,13 +21,12 @@ const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
   videoTransitionDuration = 10,
   maskHoldDuration = 30,
   maskTransitionDuration = 5,
-  amplitude = 1.0,
 }) => {
   const videos = shuffle(_videos)
   const masks = shuffle(_masks)
 
-  const [videoA, setVideoA] = useState(videos[0]);
-  const [videoB, setVideoB] = useState(videos[1]);
+  const [videoA, setVideoA] = useState<VideoSourceEntry>(videos[0]);
+  const [videoB, setVideoB] = useState<VideoSourceEntry>(videos[1]);
   const [maskA, setMaskA] = useState(masks[0]);
   const [maskB, setMaskB] = useState(masks[1]);
 
@@ -40,8 +39,8 @@ const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
   useEffect(() => {
     const videoElementA = document.createElement('video');
     const videoElementB = document.createElement('video');
-    videoElementA.src = videoA;
-    videoElementB.src = videoB;
+    videoElementA.src = videoA.src;
+    videoElementB.src = videoB.src;
   }, [videoA, videoB]);
 
   useInterval(() => {
@@ -94,11 +93,12 @@ const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
 
   return (
     <TripVideoPlane
-      videoA={videoA}
-      videoB={videoB}
+      videoA={videoA.src}
+      videoB={videoB.src}
+      bounceVideoA={videoA.bounce}
+      bounceVideoB={videoB.bounce}
       maskA={maskA}
       maskB={maskB}
-      amplitude={amplitude}
       videoDirection={videoDirection}
       maskDirection={maskDirection}
     />
@@ -113,5 +113,4 @@ export default TripSequenceShuffler;
             masks={MASK_PATHS} 
             videoHoldDuration={8}
             videoTransitionDuration={4}
-            amplitude={1.0}
           /> */}

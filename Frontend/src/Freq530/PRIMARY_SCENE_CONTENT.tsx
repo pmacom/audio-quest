@@ -4,7 +4,7 @@ import { DemoAudioVisualizersLayout, AmplitudeVisualizer, BeatIntensityPulsar, F
 
 import * as THREE from 'three';
 import TripSequenceShuffler from "./videos/VideoSequencer";
-import { VIDEO_PATHS } from "./videos/videoList";
+import { VIDEO_SOURCES } from "./videos/videoList";
 import { MASK_PATHS } from "./videos/maskList";
 
 export const PRIMARY_SCENE_CONTENT = () => {
@@ -16,12 +16,11 @@ export const PRIMARY_SCENE_CONTENT = () => {
       {/* Complete Demo Layout */}
       <DemoAudioVisualizersLayout position={[10, 0, 0]} />
 
-      <TripSequenceShuffler 
-        videos={VIDEO_PATHS} 
-        masks={MASK_PATHS} 
+      <TripSequenceShuffler
+        videos={VIDEO_SOURCES}
+        masks={MASK_PATHS}
         videoHoldDuration={8}
         videoTransitionDuration={4}
-        amplitude={1.0}
       />
     </>
   )

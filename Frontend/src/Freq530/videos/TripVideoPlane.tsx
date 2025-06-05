@@ -6,23 +6,26 @@ import { animated } from '@react-spring/three';
 import VideoFadeShader from './VideoFadeShader';
 import { useControls } from 'leva';
 import { useFreq530 } from '../audio/store/useFreq530';
+import { useVideoTexturesOptimized } from '../hooks/useVideoTextureOptimized';
 
 interface TripVideoPlaneProps {
-  amplitude: number;
   videoA: string;
   videoB: string;
   maskA: string;
   maskB: string;
+  bounceVideoA?: boolean;
+  bounceVideoB?: boolean;
   videoDirection: number; // Value between 0 and 1 for transitioning between videos
   maskDirection: number;  // Value between 0 and 1 for transitioning between masks
 }
 
 const TripVideoPlane = ({
-  // amplitude,
   videoA,
   videoB,
   maskA,
   maskB,
+  bounceVideoA,
+  bounceVideoB,
   videoDirection,
   maskDirection,
 }: TripVideoPlaneProps) => {
@@ -30,15 +33,25 @@ const TripVideoPlane = ({
   const planeRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<ShaderMaterial>(null);
 
-  const videoElementA = useMemo(() => document.createElement('video'), []);
-  const videoElementB = useMemo(() => document.createElement('video'), []);
-  const maskElementA = useMemo(() => document.createElement('video'), []);
-  const maskElementB = useMemo(() => document.createElement('video'), []);
+  const {
+    textures: [videoTextureA, videoTextureB],
+    videos: [videoElementA, videoElementB],
+  } = useVideoTexturesOptimized(
+    [
+      { urls: [videoA], bounce: bounceVideoA },
+      { urls: [videoB], bounce: bounceVideoB },
+    ],
+    amplitude
+  )
 
-  const videoTextureA = useMemo(() => new THREE.VideoTexture(videoElementA), [videoElementA]);
-  const videoTextureB = useMemo(() => new THREE.VideoTexture(videoElementB), [videoElementB]);
-  const maskTextureA = useMemo(() => new THREE.VideoTexture(maskElementA), [maskElementA]);
-  const maskTextureB = useMemo(() => new THREE.VideoTexture(maskElementB), [maskElementB]);
+  const maskRate = Math.min(Math.max(amplitude / 2, 0.1), 4)
+  const {
+    textures: [maskTextureA, maskTextureB],
+    videos: [maskElementA, maskElementB],
+  } = useVideoTexturesOptimized([
+    { urls: [maskA] },
+    { urls: [maskB] },
+  ], maskRate)
 
   const { factorTest, widthTester } = useControls('TripVideoPlane', {
     factorTest: { value: 0.3, min: 0, max: 1 },
@@ -46,62 +59,16 @@ const TripVideoPlane = ({
   });
 
   useEffect(() => {
-    videoElementA.src = videoA;
-    videoElementB.src = videoB;
-    maskElementA.src = maskA;
-    maskElementB.src = maskB;
-
-    for (const video of [videoElementA, videoElementB, maskElementA, maskElementB]) {
-      video.loop = true;
-      video.muted = true;
-      video.crossOrigin = 'anonymous';
-    }
-
-    const handleCanPlayThrough = () => {
-      videoElementA.play().catch(e => console.error("Video A play error:", e));
-      videoElementB.play().catch(e => console.error("Video B play error:", e));
-      maskElementA.play().catch(e => console.error("Mask A play error:", e));
-      maskElementB.play().catch(e => console.error("Mask B play error:", e));
-
-      videoTextureA.needsUpdate = true;
-      videoTextureB.needsUpdate = true;
-      maskTextureA.needsUpdate = true;
-      maskTextureB.needsUpdate = true;
-
-      updateMaterialAspectRatios();
-    };
-
-    videoElementA.addEventListener('canplaythrough', handleCanPlayThrough);
-    videoElementB.addEventListener('canplaythrough', handleCanPlayThrough);
-    maskElementA.addEventListener('canplaythrough', handleCanPlayThrough);
-    maskElementB.addEventListener('canplaythrough', handleCanPlayThrough);
-
-    return () => {
-      videoElementA.removeEventListener('canplaythrough', handleCanPlayThrough);
-      videoElementB.removeEventListener('canplaythrough', handleCanPlayThrough);
-      maskElementA.removeEventListener('canplaythrough', handleCanPlayThrough);
-      maskElementB.removeEventListener('canplaythrough', handleCanPlayThrough);
-    };
-  }, [videoA, videoB, maskA, maskB]);
-
-  useEffect(() => {
-    videoElementA.playbackRate = amplitude;
-    videoElementB.playbackRate = amplitude;
-    maskElementA.playbackRate = Math.min(Math.max(amplitude / 2, 0.1), 4);
-    maskElementB.playbackRate = Math.min(Math.max(amplitude / 2, 0.1), 4);
-  }, [amplitude]);
-
-  useEffect(() => {
     if (materialRef.current) {
       materialRef.current.uniforms.textureA.value = videoTextureA;
       materialRef.current.uniforms.textureB.value = videoTextureB;
-      materialRef.current.uniforms.amplitude.value = amplitude;
       materialRef.current.uniforms.maskA.value = maskTextureA;
       materialRef.current.uniforms.maskB.value = maskTextureB;
-
+      materialRef.current.uniforms.amplitude.value = amplitude;
       updateMaterialAspectRatios();
     }
-  }, [videoTextureA, videoTextureB, maskTextureA, maskTextureB]);
+  }, [videoTextureA, videoTextureB, maskTextureA, maskTextureB, amplitude]);
+
 
   const shaderMaterial = useMemo(() => {
     return new ShaderMaterial({
