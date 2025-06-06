@@ -41,19 +41,4 @@ create-next-app --version
 echo "Installing additional dependencies..."
 sudo apt install -y libpng-dev libjpeg-dev
 
-# Create a sample Next.js app to test the setup
-echo "Creating a sample Next.js app..."
-pnpm create next-app --typescript my-next-app
-cd my-next-app
-pnpm install
-
-# Test running the Next.js app
-echo "Testing Next.js app..."
-pnpm dev &
-sleep 5 # Wait for the server to start
-curl http://localhost:3000 || echo "Failed to reach Next.js app. Check logs."
-
-# Clean up by stopping the dev server
-pkill -f "next dev" || true
-
 echo "Installation and setup complete! You can now use 'cd my-next-app' and 'pnpm dev' to start your Next.js app."
