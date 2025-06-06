@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import * as THREE from 'three'
 
 export interface VideoSource {
@@ -15,12 +15,12 @@ export function useVideoTexturesOptimized(
   videos: VideoSource[],
   playbackRate: number
 ) {
-  const videosRef = useRef<HTMLVideoElement[]>([])
-  const texturesRef = useRef<THREE.VideoTexture[]>([])
+  const [videoEls, setVideoEls] = useState<HTMLVideoElement[]>([])
+  const [textures, setTextures] = useState<THREE.VideoTexture[]>([])
 
   useEffect(() => {
     const vids: HTMLVideoElement[] = []
-    const textures: THREE.VideoTexture[] = []
+    const texs: THREE.VideoTexture[] = []
 
     for (const src of videos) {
       const video = document.createElement('video')
@@ -69,14 +69,14 @@ export function useVideoTexturesOptimized(
       texture.needsUpdate = true
 
       vids.push(video)
-      textures.push(texture)
+      texs.push(texture)
     }
 
-    videosRef.current = vids
-    texturesRef.current = textures
+    setVideoEls(vids)
+    setTextures(texs)
 
     return () => {
-      textures.forEach(t => t.dispose())
+      texs.forEach(t => t.dispose())
       vids.forEach(v => {
         v.pause()
         v.src = ''
@@ -85,13 +85,13 @@ export function useVideoTexturesOptimized(
   }, [JSON.stringify(videos)])
 
   useEffect(() => {
-    videosRef.current.forEach(v => {
+    videoEls.forEach(v => {
       const sign = Math.sign(v.playbackRate) || 1
       v.playbackRate = sign * playbackRate
     })
-  }, [playbackRate])
+  }, [playbackRate, videoEls])
 
-  return { textures: texturesRef.current, videos: videosRef.current }
+  return { textures, videos: videoEls }
 }
 
 export function useVideoTextureOptimized(src: string, playbackRate: number, bounce?: boolean) {

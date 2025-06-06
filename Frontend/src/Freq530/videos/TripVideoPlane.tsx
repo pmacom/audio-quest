@@ -59,7 +59,13 @@ const TripVideoPlane = ({
   });
 
   useEffect(() => {
-    if (materialRef.current) {
+    if (
+      materialRef.current &&
+      videoTextureA &&
+      videoTextureB &&
+      maskTextureA &&
+      maskTextureB
+    ) {
       materialRef.current.uniforms.textureA.value = videoTextureA;
       materialRef.current.uniforms.textureB.value = videoTextureB;
       materialRef.current.uniforms.maskA.value = maskTextureA;
@@ -99,7 +105,12 @@ const TripVideoPlane = ({
   }, [videoTextureA, videoTextureB, maskTextureA, maskTextureB, videoDirection, maskDirection]);
 
   useFrame(() => {
-    if (materialRef.current && planeRef.current) {
+    if (
+      materialRef.current &&
+      planeRef.current &&
+      videoElementA &&
+      videoElementB
+    ) {
       materialRef.current.uniforms.videoMix.value = videoDirection;
       materialRef.current.uniforms.maskMix.value = maskDirection;
       materialRef.current.uniforms.factorTest.value = factorTest;
@@ -121,7 +132,13 @@ const TripVideoPlane = ({
   });
 
   const updateMaterialAspectRatios = () => {
-    if (materialRef.current) {
+    if (
+      materialRef.current &&
+      videoElementA &&
+      videoElementB &&
+      maskElementA &&
+      maskElementB
+    ) {
       const aspectRatioA = new THREE.Vector2(
         videoElementA.videoWidth / videoElementA.videoHeight,
         1
