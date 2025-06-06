@@ -36,6 +36,12 @@ const TripVideoPlane = ({
   const amplitude = useFreq530(state => state.values.amplitude)
   const planeRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<ShaderMaterial>(null);
+  // Store aspect ratio values so we can smoothly transition when sources change
+  const videoAspectA = useRef(1);
+  const videoAspectB = useRef(1);
+  const maskAspectA = useRef(1);
+  const maskAspectB = useRef(1);
+  const planeScaleY = useRef(1);
 
   const {
     textures: [videoTextureA, videoTextureB],
@@ -114,8 +120,12 @@ const TripVideoPlane = ({
       planeRef.current &&
       videoElementA &&
       videoElementB &&
+      maskElementA &&
+      maskElementB &&
       videoElementA.readyState >= 2 &&
-      videoElementB.readyState >= 2
+      videoElementB.readyState >= 2 &&
+      maskElementA.readyState >= 2 &&
+      maskElementB.readyState >= 2
     ) {
       materialRef.current.uniforms.videoMix.value = videoDirection;
       materialRef.current.uniforms.maskMix.value = maskDirection;
@@ -125,27 +135,79 @@ const TripVideoPlane = ({
         videoElementA.videoWidth > 0 &&
         videoElementA.videoHeight > 0 &&
         videoElementB.videoWidth > 0 &&
-        videoElementB.videoHeight > 0
+        videoElementB.videoHeight > 0 &&
+        maskElementA.videoWidth > 0 &&
+        maskElementA.videoHeight > 0 &&
+        maskElementB.videoWidth > 0 &&
+        maskElementB.videoHeight > 0
       ) {
-        const aspectRatioA =
+        const targetAspectA =
           videoElementA.videoWidth / videoElementA.videoHeight;
-        const aspectRatioB =
+        const targetAspectB =
           videoElementB.videoWidth / videoElementB.videoHeight;
+        const targetMaskAspectA =
+          maskElementA.videoWidth / maskElementA.videoHeight;
+        const targetMaskAspectB =
+          maskElementB.videoWidth / maskElementB.videoHeight;
 
-        // Lerp between aspect ratios based on videoMix
+        // Smoothly update stored aspect ratios
+        const lerpAmt = 0.1;
+        videoAspectA.current = THREE.MathUtils.lerp(
+          videoAspectA.current,
+          targetAspectA,
+          lerpAmt,
+        );
+        videoAspectB.current = THREE.MathUtils.lerp(
+          videoAspectB.current,
+          targetAspectB,
+          lerpAmt,
+        );
+        maskAspectA.current = THREE.MathUtils.lerp(
+          maskAspectA.current,
+          targetMaskAspectA,
+          lerpAmt,
+        );
+        maskAspectB.current = THREE.MathUtils.lerp(
+          maskAspectB.current,
+          targetMaskAspectB,
+          lerpAmt,
+        );
+
         const lerpedAspectRatio = THREE.MathUtils.lerp(
-          aspectRatioA,
-          aspectRatioB,
+          videoAspectA.current,
+          videoAspectB.current,
           videoDirection,
         );
 
-        // Adjust the plane's scale to match the lerped aspect ratio
-        const scaleX = 1; // Width remains constant
-        const scaleY = 1 / lerpedAspectRatio; // Height is adjusted based on aspect ratio
+        const targetScaleY = 1 / lerpedAspectRatio;
+        planeScaleY.current = THREE.MathUtils.lerp(
+          planeScaleY.current,
+          targetScaleY,
+          lerpAmt,
+        );
 
-        planeRef.current.scale.set(scaleX, scaleY, 1);
+        planeRef.current.scale.set(1, planeScaleY.current, 1);
 
-        updateMaterialAspectRatios();
+        materialRef.current.uniforms.textureA_aspectRatio.value.set(
+          videoAspectA.current,
+          1,
+        );
+        materialRef.current.uniforms.textureB_aspectRatio.value.set(
+          videoAspectB.current,
+          1,
+        );
+        materialRef.current.uniforms.maskA_aspectRatio.value.set(
+          maskAspectA.current,
+          1,
+        );
+        materialRef.current.uniforms.maskB_aspectRatio.value.set(
+          maskAspectB.current,
+          1,
+        );
+
+        materialRef.current.uniforms.uvScale.value = scaleValue;
+        materialRef.current.uniforms.maskContrast.value = maskContrast;
+        materialRef.current.uniforms.maskBrightness.value = brightness;
       }
     }
   });
@@ -170,28 +232,39 @@ const TripVideoPlane = ({
       maskElementB.videoWidth > 0 &&
       maskElementB.videoHeight > 0
     ) {
-      const aspectRatioA = new THREE.Vector2(
-        videoElementA.videoWidth / videoElementA.videoHeight,
+      videoAspectA.current =
+        videoElementA.videoWidth / videoElementA.videoHeight;
+      videoAspectB.current =
+        videoElementB.videoWidth / videoElementB.videoHeight;
+      maskAspectA.current =
+        maskElementA.videoWidth / maskElementA.videoHeight;
+      maskAspectB.current =
+        maskElementB.videoWidth / maskElementB.videoHeight;
+
+      const lerpedAspectRatio = THREE.MathUtils.lerp(
+        videoAspectA.current,
+        videoAspectB.current,
+        videoDirection,
+      );
+      planeScaleY.current = 1 / lerpedAspectRatio;
+      planeRef.current?.scale.set(1, planeScaleY.current, 1);
+
+      materialRef.current.uniforms.textureA_aspectRatio.value.set(
+        videoAspectA.current,
         1,
       );
-      const aspectRatioB = new THREE.Vector2(
-        videoElementB.videoWidth / videoElementB.videoHeight,
+      materialRef.current.uniforms.textureB_aspectRatio.value.set(
+        videoAspectB.current,
         1,
       );
-
-      const maskAspectRatioA = new THREE.Vector2(
-        maskElementA.videoWidth / maskElementA.videoHeight,
-        1
+      materialRef.current.uniforms.maskA_aspectRatio.value.set(
+        maskAspectA.current,
+        1,
       );
-      const maskAspectRatioB = new THREE.Vector2(
-        maskElementB.videoWidth / maskElementB.videoHeight,
-        1
+      materialRef.current.uniforms.maskB_aspectRatio.value.set(
+        maskAspectB.current,
+        1,
       );
-
-      materialRef.current.uniforms.textureA_aspectRatio.value = aspectRatioA;
-      materialRef.current.uniforms.textureB_aspectRatio.value = aspectRatioB;
-      materialRef.current.uniforms.maskA_aspectRatio.value = maskAspectRatioA;
-      materialRef.current.uniforms.maskB_aspectRatio.value = maskAspectRatioB;
       materialRef.current.uniforms.uvScale.value = scaleValue;
       materialRef.current.uniforms.maskContrast.value = maskContrast;
       materialRef.current.uniforms.maskBrightness.value = brightness;
