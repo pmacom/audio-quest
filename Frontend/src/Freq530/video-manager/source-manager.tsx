@@ -14,6 +14,8 @@ const STORAGE_KEY = "source_bounce_map"
 export function SourceManager() {
   const [videos, setVideos] = useState<SourceEntry[]>(VIDEO_SOURCES)
   const [masks, setMasks] = useState<SourceEntry[]>(MASK_SOURCES)
+  const [visibleVideos, setVisibleVideos] = useState(12)
+  const [visibleMasks, setVisibleMasks] = useState(12)
 
   // Load bounce settings from localStorage
   useEffect(() => {
@@ -43,13 +45,14 @@ export function SourceManager() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {videos.map((video, idx) => (
+            {videos.slice(0, visibleVideos).map((video, idx) => (
               <div key={video.src} className="space-y-2">
                 <video
                   src={video.src}
                   muted
                   loop
                   playsInline
+                  preload="metadata"
                   className="w-full h-32 object-cover rounded"
                 />
                 <div className="flex items-center justify-between">
@@ -68,6 +71,16 @@ export function SourceManager() {
                 </div>
               </div>
             ))}
+            {visibleVideos < videos.length && (
+              <button
+                className="col-span-2 md:col-span-4 text-sm underline"
+                onClick={() =>
+                  setVisibleVideos(v => Math.min(v + 12, videos.length))
+                }
+              >
+                Load more
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -79,13 +92,14 @@ export function SourceManager() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {masks.map((mask, idx) => (
+            {masks.slice(0, visibleMasks).map((mask, idx) => (
               <div key={mask.src} className="space-y-2">
                 <video
                   src={mask.src}
                   muted
                   loop
                   playsInline
+                  preload="metadata"
                   className="w-full h-32 object-cover rounded"
                 />
                 <div className="flex items-center justify-between">
@@ -104,6 +118,16 @@ export function SourceManager() {
                 </div>
               </div>
             ))}
+            {visibleMasks < masks.length && (
+              <button
+                className="col-span-2 md:col-span-4 text-sm underline"
+                onClick={() =>
+                  setVisibleMasks(v => Math.min(v + 12, masks.length))
+                }
+              >
+                Load more
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>
