@@ -39,7 +39,6 @@ const TripVideoPlane = ({
   // Store aspect ratio values so we can smoothly transition when sources change
   const videoAspectA = useRef(1);
   const videoAspectB = useRef(1);
-  const planeScaleY = useRef(1);
 
   const {
     textures: [videoTextureA, videoTextureB],
@@ -153,13 +152,8 @@ const TripVideoPlane = ({
         );
 
         const targetScaleY = 1 / lerpedAspectRatio;
-        planeScaleY.current = THREE.MathUtils.lerp(
-          planeScaleY.current,
-          targetScaleY,
-          lerpAmt,
-        );
-
-        planeRef.current.scale.set(1, planeScaleY.current, 1);
+        // Scale is temporarily fixed while investigating issues
+        planeRef.current.scale.set(1, 1, 1);
 
         materialRef.current.uniforms.textureA_aspectRatio.value.set(
           videoAspectA.current,
@@ -199,8 +193,8 @@ const TripVideoPlane = ({
         videoAspectB.current,
         videoDirection,
       );
-      planeScaleY.current = 1 / lerpedAspectRatio;
-      planeRef.current?.scale.set(1, planeScaleY.current, 1);
+      // Temporarily keep plane scale static for investigation
+      planeRef.current?.scale.set(1, 1, 1);
 
       materialRef.current.uniforms.textureA_aspectRatio.value.set(
         videoAspectA.current,
@@ -216,17 +210,14 @@ const TripVideoPlane = ({
     }
   };
 
-  const { scaleValue, scaleX, scaleY, scaleZ, maskContrast, brightness } = useControls('TripVideoPlane', {
+  const { scaleValue, maskContrast, brightness } = useControls('TripVideoPlane', {
     scaleValue: { value: 2.0, min: 0.1, max: 2.0 },
-    scaleX: { value: 1.2, min: -3, max: 3, step: 0.1 },
-    scaleY: { value: 1.0, min: -3, max: 3, step: 0.1 },
-    scaleZ: { value: 0.9, min: -3, max: 3, step: 0.1 },
     maskContrast: { value: 1.0, min: 0, max: 3, step: 0.1 },
     brightness: { value: 2.0, min: 0, max: 3, step: 0.1 },
   });
 
   return (
-    <group scale={[scaleX, scaleY, scaleZ]}>
+    <group scale={[1, 1, 1]}>
       <animated.mesh ref={planeRef} position={[0, 0, 0]}>
         <sphereGeometry args={[15, 32, 16, 0, Math.PI/1]} /> 
         {/* <planeGeometry args={[1, 1, 1, 1]} /> */}
