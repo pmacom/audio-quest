@@ -5,6 +5,7 @@ import { VideoManager } from "@/Freq530/video-manager/video-manager"
 import { VideoUpload } from "@/Freq530/video-manager/video-upload"
 import { DirectoryManager } from "@/Freq530/video-manager/directory-manager"
 import { TagManager } from "@/Freq530/video-manager/tag-manager"
+import { SourceManager } from "@/Freq530/video-manager/source-manager"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tag } from "@/Freq530/video-manager/types"
@@ -142,11 +143,12 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="videos" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="videos">Videos</TabsTrigger>
           <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="directories">Directories</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
+          <TabsTrigger value="sources">Sources</TabsTrigger>
         </TabsList>
 
         <TabsContent value="videos" className="space-y-4">
@@ -211,6 +213,18 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               <TagManager tags={tags} onAddTag={addTag} onDeleteTag={deleteTag} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sources" className="space-y-4">
+          <Card className="bg-white">
+            <CardHeader>
+              <CardTitle>Source Bounce</CardTitle>
+              <CardDescription>Configure bounce behavior for default sources</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SourceManager />
             </CardContent>
           </Card>
         </TabsContent>
