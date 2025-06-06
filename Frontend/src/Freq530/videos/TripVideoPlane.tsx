@@ -81,7 +81,7 @@ const TripVideoPlane = ({
       materialRef.current.uniforms.maskA.value = maskTextureA;
       materialRef.current.uniforms.maskB.value = maskTextureB;
       materialRef.current.uniforms.amplitude.value = amplitude;
-      updateMaterialAspectRatios();
+    //  updateMaterialAspectRatios();
     }
   }, [videoTextureA, videoTextureB, maskTextureA, maskTextureB, amplitude]);
 
@@ -138,29 +138,29 @@ const TripVideoPlane = ({
 
         // Smoothly update stored aspect ratios
         const lerpAmt = 0.1;
-        videoAspectA.current = THREE.MathUtils.lerp(
-          videoAspectA.current,
-          targetAspectA,
-          lerpAmt,
-        );
-        videoAspectB.current = THREE.MathUtils.lerp(
-          videoAspectB.current,
-          targetAspectB,
-          lerpAmt,
-        );
+        // videoAspectA.current = THREE.MathUtils.lerp(
+        //   videoAspectA.current,
+        //   targetAspectA,
+        //   lerpAmt,
+        // );
+        // videoAspectB.current = THREE.MathUtils.lerp(
+        //   videoAspectB.current,
+        //   targetAspectB,
+        //   lerpAmt,
+        // );
 
-        const lerpedAspectRatio = THREE.MathUtils.lerp(
-          videoAspectA.current,
-          videoAspectB.current,
-          videoDirection,
-        );
+        // const lerpedAspectRatio = THREE.MathUtils.lerp(
+        //   videoAspectA.current,
+        //   videoAspectB.current,
+        //   videoDirection,
+        // );
 
-        const targetScaleY = 1 / lerpedAspectRatio;
-        if (ENABLE_DYNAMIC_SCALING) {
-          planeRef.current.scale.set(1, targetScaleY, 1);
-        } else {
-          planeRef.current.scale.set(1, 1, 1);
-        }
+        // const targetScaleY = 1 / lerpedAspectRatio;
+        // if (ENABLE_DYNAMIC_SCALING) {
+        //   planeRef.current.scale.set(1, targetScaleY, 1);
+        // } else {
+        //   planeRef.current.scale.set(1, 1, 1);
+        // }
 
         materialRef.current.uniforms.textureA_aspectRatio.value.set(
           videoAspectA.current,
@@ -171,7 +171,7 @@ const TripVideoPlane = ({
           1,
         );
 
-        materialRef.current.uniforms.uvScale.value = scaleValue;
+        // materialRef.current.uniforms.uvScale.value = scaleValue;
         materialRef.current.uniforms.maskContrast.value = maskContrast;
         materialRef.current.uniforms.maskBrightness.value = brightness;
       }
@@ -206,17 +206,17 @@ const TripVideoPlane = ({
         planeRef.current?.scale.set(1, 1, 1);
       }
 
-      materialRef.current.uniforms.textureA_aspectRatio.value.set(
-        videoAspectA.current,
-        1,
-      );
-      materialRef.current.uniforms.textureB_aspectRatio.value.set(
-        videoAspectB.current,
-        1,
-      );
-      materialRef.current.uniforms.uvScale.value = scaleValue;
-      materialRef.current.uniforms.maskContrast.value = maskContrast;
-      materialRef.current.uniforms.maskBrightness.value = brightness;
+      // materialRef.current.uniforms.textureA_aspectRatio.value.set(
+      //   videoAspectA.current,
+      //   1,
+      // );
+      // materialRef.current.uniforms.textureB_aspectRatio.value.set(
+      //   videoAspectB.current,
+      //   1,
+      // );
+      // materialRef.current.uniforms.uvScale.value = scaleValue;
+      // materialRef.current.uniforms.maskContrast.value = maskContrast;
+      // materialRef.current.uniforms.maskBrightness.value = brightness;
     }
   };
 
