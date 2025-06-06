@@ -6,12 +6,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '500mb', // Allow up to 500MB for video uploads
     },
   },
-  // Increase the API body size limit
-  api: {
-    bodyParser: {
-      sizeLimit: '500mb',
-    },
-  },
+  // The legacy `api` config key is no longer supported in Next.js 15.
+  // Route handlers will inherit the `serverActions.bodySizeLimit` instead.
 };
 
 export default nextConfig;
