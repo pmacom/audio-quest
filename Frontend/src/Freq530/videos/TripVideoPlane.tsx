@@ -117,19 +117,32 @@ const TripVideoPlane = ({
       materialRef.current.uniforms.maskMix.value = maskDirection;
       materialRef.current.uniforms.factorTest.value = factorTest;
 
-      const aspectRatioA = videoElementA.videoWidth / videoElementA.videoHeight;
-      const aspectRatioB = videoElementB.videoWidth / videoElementB.videoHeight;
+      if (
+        videoElementA.videoWidth > 0 &&
+        videoElementA.videoHeight > 0 &&
+        videoElementB.videoWidth > 0 &&
+        videoElementB.videoHeight > 0
+      ) {
+        const aspectRatioA =
+          videoElementA.videoWidth / videoElementA.videoHeight;
+        const aspectRatioB =
+          videoElementB.videoWidth / videoElementB.videoHeight;
 
-      // Lerp between aspect ratios based on videoMix
-      const lerpedAspectRatio = THREE.MathUtils.lerp(aspectRatioA, aspectRatioB, videoDirection);
+        // Lerp between aspect ratios based on videoMix
+        const lerpedAspectRatio = THREE.MathUtils.lerp(
+          aspectRatioA,
+          aspectRatioB,
+          videoDirection,
+        );
 
-      // Adjust the plane's scale to match the lerped aspect ratio
-      const scaleX = 1; // Width remains constant
-      const scaleY = 1 / lerpedAspectRatio; // Height is adjusted based on aspect ratio
+        // Adjust the plane's scale to match the lerped aspect ratio
+        const scaleX = 1; // Width remains constant
+        const scaleY = 1 / lerpedAspectRatio; // Height is adjusted based on aspect ratio
 
-      planeRef.current.scale.set(scaleX, scaleY, 1);
+        planeRef.current.scale.set(scaleX, scaleY, 1);
 
-      updateMaterialAspectRatios();
+        updateMaterialAspectRatios();
+      }
     }
   });
 
@@ -143,15 +156,23 @@ const TripVideoPlane = ({
       videoElementA.readyState >= 2 &&
       videoElementB.readyState >= 2 &&
       maskElementA.readyState >= 2 &&
-      maskElementB.readyState >= 2
+      maskElementB.readyState >= 2 &&
+      videoElementA.videoWidth > 0 &&
+      videoElementA.videoHeight > 0 &&
+      videoElementB.videoWidth > 0 &&
+      videoElementB.videoHeight > 0 &&
+      maskElementA.videoWidth > 0 &&
+      maskElementA.videoHeight > 0 &&
+      maskElementB.videoWidth > 0 &&
+      maskElementB.videoHeight > 0
     ) {
       const aspectRatioA = new THREE.Vector2(
         videoElementA.videoWidth / videoElementA.videoHeight,
-        1
+        1,
       );
       const aspectRatioB = new THREE.Vector2(
         videoElementB.videoWidth / videoElementB.videoHeight,
-        1
+        1,
       );
 
       const maskAspectRatioA = new THREE.Vector2(

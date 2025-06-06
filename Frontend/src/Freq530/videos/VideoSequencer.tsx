@@ -13,10 +13,12 @@ async function preloadVideo(src: string): Promise<void> {
     vid.src = src;
     const done = () => {
       vid.removeEventListener('canplaythrough', done);
+      vid.removeEventListener('loadedmetadata', done);
       vid.removeEventListener('error', done);
       res();
     };
     vid.addEventListener('canplaythrough', done);
+    vid.addEventListener('loadedmetadata', done);
     vid.addEventListener('error', done);
   });
 }
