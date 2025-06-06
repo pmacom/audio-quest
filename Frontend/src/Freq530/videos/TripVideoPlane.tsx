@@ -21,6 +21,10 @@ interface TripVideoPlaneProps {
   maskDirection: number;  // Value between 0 and 1 for transitioning between masks
 }
 
+// Temporary flag controlling whether the plane adjusts its scale based on
+// incoming video aspect ratios. This remains off while we debug sizing issues.
+const ENABLE_DYNAMIC_SCALING = false;
+
 const TripVideoPlane = ({
   videoA,
   videoB,
@@ -152,8 +156,11 @@ const TripVideoPlane = ({
         );
 
         const targetScaleY = 1 / lerpedAspectRatio;
-        // Scale is temporarily fixed while investigating issues
-        planeRef.current.scale.set(1, 1, 1);
+        if (ENABLE_DYNAMIC_SCALING) {
+          planeRef.current.scale.set(1, targetScaleY, 1);
+        } else {
+          planeRef.current.scale.set(1, 1, 1);
+        }
 
         materialRef.current.uniforms.textureA_aspectRatio.value.set(
           videoAspectA.current,
@@ -193,8 +200,11 @@ const TripVideoPlane = ({
         videoAspectB.current,
         videoDirection,
       );
-      // Temporarily keep plane scale static for investigation
-      planeRef.current?.scale.set(1, 1, 1);
+      if (ENABLE_DYNAMIC_SCALING) {
+        planeRef.current?.scale.set(1, 1 / lerpedAspectRatio, 1);
+      } else {
+        planeRef.current?.scale.set(1, 1, 1);
+      }
 
       materialRef.current.uniforms.textureA_aspectRatio.value.set(
         videoAspectA.current,
