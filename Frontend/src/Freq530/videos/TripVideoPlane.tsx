@@ -15,6 +15,8 @@ interface TripVideoPlaneProps {
   maskB: string;
   bounceVideoA?: boolean;
   bounceVideoB?: boolean;
+  bounceMaskA?: boolean;
+  bounceMaskB?: boolean;
   videoDirection: number; // Value between 0 and 1 for transitioning between videos
   maskDirection: number;  // Value between 0 and 1 for transitioning between masks
 }
@@ -26,6 +28,8 @@ const TripVideoPlane = ({
   maskB,
   bounceVideoA,
   bounceVideoB,
+  bounceMaskA,
+  bounceMaskB,
   videoDirection,
   maskDirection,
 }: TripVideoPlaneProps) => {
@@ -49,8 +53,8 @@ const TripVideoPlane = ({
     textures: [maskTextureA, maskTextureB],
     videos: [maskElementA, maskElementB],
   } = useVideoTexturesOptimized([
-    { urls: [maskA] },
-    { urls: [maskB] },
+    { urls: [maskA], bounce: bounceMaskA },
+    { urls: [maskB], bounce: bounceMaskB },
   ], maskRate)
 
   const { factorTest, widthTester } = useControls('TripVideoPlane', {

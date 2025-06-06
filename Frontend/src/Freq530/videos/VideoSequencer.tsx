@@ -4,6 +4,7 @@ import TripVideoPlane from './TripVideoPlane';
 import { useInterval } from 'usehooks-ts';
 import { shuffle } from 'fast-shuffle';
 import { VideoSourceEntry } from './videoList';
+import { MaskSourceEntry } from './maskList';
 
 async function preloadVideo(src: string): Promise<void> {
   return new Promise(res => {
@@ -25,7 +26,7 @@ async function preloadVideo(src: string): Promise<void> {
 
 interface TripSequenceShufflerProps {
   videos: VideoSourceEntry[];
-  masks: string[];
+  masks: MaskSourceEntry[];
   videoHoldDuration?: number;
   videoTransitionDuration?: number;
   maskHoldDuration?: number;
@@ -45,8 +46,8 @@ const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
 
   const [videoA, setVideoA] = useState<VideoSourceEntry>(videos[0]);
   const [videoB, setVideoB] = useState<VideoSourceEntry>(videos[1]);
-  const [maskA, setMaskA] = useState(masks[0]);
-  const [maskB, setMaskB] = useState(masks[1]);
+  const [maskA, setMaskA] = useState<MaskSourceEntry>(masks[0]);
+  const [maskB, setMaskB] = useState<MaskSourceEntry>(masks[1]);
 
   const [videoDirection, setVideoDirection] = useState(1); // Start with videoB active
   const [maskDirection, setMaskDirection] = useState(1); // Start with maskB active
@@ -81,11 +82,15 @@ const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
   useInterval(() => {
     if (maskDirection === 0) {
       const nextIndex = (maskIndexRef.current + 1) % masks.length;
-      setMaskB(masks[nextIndex]);
+      preloadVideo(masks[nextIndex].src).then(() => {
+        setMaskB(masks[nextIndex]);
+      });
       maskIndexRef.current = nextIndex;
     } else {
       const nextIndex = (maskIndexRef.current + 1) % masks.length;
-      setMaskA(masks[nextIndex]);
+      preloadVideo(masks[nextIndex].src).then(() => {
+        setMaskA(masks[nextIndex]);
+      });
       maskIndexRef.current = nextIndex;
     }
 
@@ -107,8 +112,10 @@ const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
       videoB={videoB.src}
       bounceVideoA={videoA.bounce}
       bounceVideoB={videoB.bounce}
-      maskA={maskA}
-      maskB={maskB}
+      maskA={maskA.src}
+      maskB={maskB.src}
+      bounceMaskA={maskA.bounce}
+      bounceMaskB={maskB.bounce}
       videoDirection={videoDirection}
       maskDirection={maskDirection}
     />

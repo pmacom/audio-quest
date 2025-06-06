@@ -86,5 +86,16 @@ export const MASK_PATHS_RELATIVE = [
 // "/masks/ZXw3RNx1Lb6RTj3y.mp4",
 ]
 
+
+export interface MaskSourceEntry {
+  src: string
+  bounce?: boolean
+}
+
 export const MASK_PATHS = MASK_PATHS_RELATIVE.map(path => filepathPrefix + path)
+
+export const MASK_SOURCES: MaskSourceEntry[] = MASK_PATHS_RELATIVE.map(path => ({
+  src: filepathPrefix + path,
+  bounce: false,
+}))
 
