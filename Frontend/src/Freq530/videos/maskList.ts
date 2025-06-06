@@ -90,6 +90,7 @@ export const MASK_PATHS_RELATIVE = [
 export interface MaskSourceEntry {
   src: string
   bounce?: boolean
+  enabled?: boolean
 }
 
 export const MASK_PATHS = MASK_PATHS_RELATIVE.map(path => filepathPrefix + path)
@@ -97,5 +98,6 @@ export const MASK_PATHS = MASK_PATHS_RELATIVE.map(path => filepathPrefix + path)
 export const MASK_SOURCES: MaskSourceEntry[] = MASK_PATHS_RELATIVE.map(path => ({
   src: filepathPrefix + path,
   bounce: false,
+  enabled: true,
 }))
 

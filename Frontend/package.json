@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate-video-data": "node ../../scripts/generateVideoMetadata.js"
   },
   "dependencies": {
     "@coreui/coreui": "^5.3.2",

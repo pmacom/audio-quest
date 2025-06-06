@@ -158,6 +158,7 @@ export const VIDEO_PATHS_RELATIVE = [
 export interface VideoSourceEntry {
   src: string
   bounce?: boolean
+  enabled?: boolean
 }
 
 export const VIDEO_PATHS = VIDEO_PATHS_RELATIVE.map(
@@ -167,4 +168,5 @@ export const VIDEO_PATHS = VIDEO_PATHS_RELATIVE.map(
 export const VIDEO_SOURCES: VideoSourceEntry[] = VIDEO_PATHS_RELATIVE.map(path => ({
   src: filepathPrefix + path,
   bounce: false,
+  enabled: true,
 }))

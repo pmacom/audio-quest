@@ -7,31 +7,55 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 
-interface SourceEntry { src: string; bounce?: boolean }
+interface SourceEntry {
+  src: string
+  thumbnail?: string
+  bounce?: boolean
+  enabled?: boolean
+}
 
-const STORAGE_KEY = "source_bounce_map"
+const STORAGE_KEY = "source_settings"
 
 export function SourceManager() {
-  const [videos, setVideos] = useState<SourceEntry[]>(VIDEO_SOURCES)
-  const [masks, setMasks] = useState<SourceEntry[]>(MASK_SOURCES)
+  const [videos, setVideos] = useState<SourceEntry[]>([])
+  const [masks, setMasks] = useState<SourceEntry[]>([])
   const [visibleVideos, setVisibleVideos] = useState(12)
   const [visibleMasks, setVisibleMasks] = useState(12)
 
-  // Load bounce settings from localStorage
+  // Load sources from JSON files and merge with stored settings
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const parsed: Record<string, boolean> = JSON.parse(stored)
-      setVideos(vs => vs.map(v => ({ ...v, bounce: parsed[v.src] ?? v.bounce })))
-      setMasks(ms => ms.map(m => ({ ...m, bounce: parsed[m.src] ?? m.bounce })))
+    async function load() {
+      try {
+        const [videoRes, maskRes] = await Promise.all([
+          fetch('/video-data.json'),
+          fetch('/mask-data.json'),
+        ])
+        const videoData: SourceEntry[] = await videoRes.json()
+        const maskData: SourceEntry[] = await maskRes.json()
+        const stored = localStorage.getItem(STORAGE_KEY)
+        const parsed: Record<string, { bounce?: boolean; enabled?: boolean }> =
+          stored ? JSON.parse(stored) : {}
+        setVideos(
+          videoData.map((v) => ({ ...v, ...(parsed[v.src] || {}) }))
+        )
+        setMasks(maskData.map((m) => ({ ...m, ...(parsed[m.src] || {}) })))
+      } catch {
+        // fallback to static lists
+        const stored = localStorage.getItem(STORAGE_KEY)
+        const parsed: Record<string, { bounce?: boolean; enabled?: boolean }> =
+          stored ? JSON.parse(stored) : {}
+        setVideos(VIDEO_SOURCES.map((v) => ({ ...v, ...(parsed[v.src] || {}) })))
+        setMasks(MASK_SOURCES.map((m) => ({ ...m, ...(parsed[m.src] || {}) })))
+      }
     }
+    load()
   }, [])
 
   // Save to localStorage whenever flags change
   useEffect(() => {
-    const map: Record<string, boolean> = {}
+    const map: Record<string, { bounce?: boolean; enabled?: boolean }> = {}
     ;[...videos, ...masks].forEach(s => {
-      if (s.bounce) map[s.src] = s.bounce
+      map[s.src] = { bounce: s.bounce, enabled: s.enabled }
     })
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map))
   }, [videos, masks])
@@ -47,27 +71,51 @@ export function SourceManager() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {videos.slice(0, visibleVideos).map((video, idx) => (
               <div key={video.src} className="space-y-2">
-                <video
-                  src={video.src}
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                  className="w-full h-32 object-cover rounded"
-                />
-                <div className="flex items-center justify-between">
-                  <Label htmlFor={`video-bounce-${idx}`}>Bounce</Label>
-                  <Switch
-                    id={`video-bounce-${idx}`}
-                    checked={!!video.bounce}
-                    onCheckedChange={checked =>
-                      setVideos(list =>
-                        list.map((v, i) =>
-                          i === idx ? { ...v, bounce: checked } : v,
-                        ),
-                      )
-                    }
+                {video.thumbnail ? (
+                  <img
+                    src={video.thumbnail}
+                    alt="thumbnail"
+                    className="w-full h-32 object-cover rounded"
                   />
+                ) : (
+                  <video
+                    src={video.src}
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="w-full h-32 object-cover rounded"
+                  />
+                )}
+                <div className="flex items-center justify-between space-x-2">
+                  <div className="flex items-center space-x-1">
+                    <Label htmlFor={`video-bounce-${idx}`}>Bounce</Label>
+                    <Switch
+                      id={`video-bounce-${idx}`}
+                      checked={!!video.bounce}
+                      onCheckedChange={checked =>
+                        setVideos(list =>
+                          list.map((v, i) =>
+                            i === idx ? { ...v, bounce: checked } : v,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Label htmlFor={`video-enabled-${idx}`}>Enabled</Label>
+                    <Switch
+                      id={`video-enabled-${idx}`}
+                      checked={video.enabled !== false}
+                      onCheckedChange={checked =>
+                        setVideos(list =>
+                          list.map((v, i) =>
+                            i === idx ? { ...v, enabled: checked } : v,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -94,27 +142,51 @@ export function SourceManager() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {masks.slice(0, visibleMasks).map((mask, idx) => (
               <div key={mask.src} className="space-y-2">
-                <video
-                  src={mask.src}
-                  muted
-                  loop
-                  playsInline
-                  preload="metadata"
-                  className="w-full h-32 object-cover rounded"
-                />
-                <div className="flex items-center justify-between">
-                  <Label htmlFor={`mask-bounce-${idx}`}>Bounce</Label>
-                  <Switch
-                    id={`mask-bounce-${idx}`}
-                    checked={!!mask.bounce}
-                    onCheckedChange={checked =>
-                      setMasks(list =>
-                        list.map((m, i) =>
-                          i === idx ? { ...m, bounce: checked } : m,
-                        ),
-                      )
-                    }
+                {mask.thumbnail ? (
+                  <img
+                    src={mask.thumbnail}
+                    alt="thumbnail"
+                    className="w-full h-32 object-cover rounded"
                   />
+                ) : (
+                  <video
+                    src={mask.src}
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="w-full h-32 object-cover rounded"
+                  />
+                )}
+                <div className="flex items-center justify-between space-x-2">
+                  <div className="flex items-center space-x-1">
+                    <Label htmlFor={`mask-bounce-${idx}`}>Bounce</Label>
+                    <Switch
+                      id={`mask-bounce-${idx}`}
+                      checked={!!mask.bounce}
+                      onCheckedChange={checked =>
+                        setMasks(list =>
+                          list.map((m, i) =>
+                            i === idx ? { ...m, bounce: checked } : m,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Label htmlFor={`mask-enabled-${idx}`}>Enabled</Label>
+                    <Switch
+                      id={`mask-enabled-${idx}`}
+                      checked={mask.enabled !== false}
+                      onCheckedChange={checked =>
+                        setMasks(list =>
+                          list.map((m, i) =>
+                            i === idx ? { ...m, enabled: checked } : m,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             ))}
