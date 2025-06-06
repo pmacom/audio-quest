@@ -39,8 +39,6 @@ const TripVideoPlane = ({
   // Store aspect ratio values so we can smoothly transition when sources change
   const videoAspectA = useRef(1);
   const videoAspectB = useRef(1);
-  const maskAspectA = useRef(1);
-  const maskAspectB = useRef(1);
   const planeScaleY = useRef(1);
 
   const {
@@ -100,8 +98,6 @@ const TripVideoPlane = ({
         factorTest: { value: 0.4 },
         textureA_aspectRatio: { value: new THREE.Vector2(1, 1) },
         textureB_aspectRatio: { value: new THREE.Vector2(1, 1) },
-        maskA_aspectRatio: { value: new THREE.Vector2(1, 1) },
-        maskB_aspectRatio: { value: new THREE.Vector2(1, 1) },
         uvScale: { value: 1.0 },
         maskContrast: { value: 1.0 },
         maskBrightness: { value: 1.0 },
@@ -120,12 +116,8 @@ const TripVideoPlane = ({
       planeRef.current &&
       videoElementA &&
       videoElementB &&
-      maskElementA &&
-      maskElementB &&
       videoElementA.readyState >= 2 &&
-      videoElementB.readyState >= 2 &&
-      maskElementA.readyState >= 2 &&
-      maskElementB.readyState >= 2
+      videoElementB.readyState >= 2
     ) {
       materialRef.current.uniforms.videoMix.value = videoDirection;
       materialRef.current.uniforms.maskMix.value = maskDirection;
@@ -135,20 +127,12 @@ const TripVideoPlane = ({
         videoElementA.videoWidth > 0 &&
         videoElementA.videoHeight > 0 &&
         videoElementB.videoWidth > 0 &&
-        videoElementB.videoHeight > 0 &&
-        maskElementA.videoWidth > 0 &&
-        maskElementA.videoHeight > 0 &&
-        maskElementB.videoWidth > 0 &&
-        maskElementB.videoHeight > 0
+        videoElementB.videoHeight > 0
       ) {
         const targetAspectA =
           videoElementA.videoWidth / videoElementA.videoHeight;
         const targetAspectB =
           videoElementB.videoWidth / videoElementB.videoHeight;
-        const targetMaskAspectA =
-          maskElementA.videoWidth / maskElementA.videoHeight;
-        const targetMaskAspectB =
-          maskElementB.videoWidth / maskElementB.videoHeight;
 
         // Smoothly update stored aspect ratios
         const lerpAmt = 0.1;
@@ -160,16 +144,6 @@ const TripVideoPlane = ({
         videoAspectB.current = THREE.MathUtils.lerp(
           videoAspectB.current,
           targetAspectB,
-          lerpAmt,
-        );
-        maskAspectA.current = THREE.MathUtils.lerp(
-          maskAspectA.current,
-          targetMaskAspectA,
-          lerpAmt,
-        );
-        maskAspectB.current = THREE.MathUtils.lerp(
-          maskAspectB.current,
-          targetMaskAspectB,
           lerpAmt,
         );
 
@@ -196,14 +170,6 @@ const TripVideoPlane = ({
           videoAspectB.current,
           1,
         );
-        materialRef.current.uniforms.maskA_aspectRatio.value.set(
-          maskAspectA.current,
-          1,
-        );
-        materialRef.current.uniforms.maskB_aspectRatio.value.set(
-          maskAspectB.current,
-          1,
-        );
 
         materialRef.current.uniforms.uvScale.value = scaleValue;
         materialRef.current.uniforms.maskContrast.value = maskContrast;
@@ -217,29 +183,17 @@ const TripVideoPlane = ({
       materialRef.current &&
       videoElementA &&
       videoElementB &&
-      maskElementA &&
-      maskElementB &&
       videoElementA.readyState >= 2 &&
       videoElementB.readyState >= 2 &&
-      maskElementA.readyState >= 2 &&
-      maskElementB.readyState >= 2 &&
       videoElementA.videoWidth > 0 &&
       videoElementA.videoHeight > 0 &&
       videoElementB.videoWidth > 0 &&
-      videoElementB.videoHeight > 0 &&
-      maskElementA.videoWidth > 0 &&
-      maskElementA.videoHeight > 0 &&
-      maskElementB.videoWidth > 0 &&
-      maskElementB.videoHeight > 0
+      videoElementB.videoHeight > 0
     ) {
       videoAspectA.current =
         videoElementA.videoWidth / videoElementA.videoHeight;
       videoAspectB.current =
         videoElementB.videoWidth / videoElementB.videoHeight;
-      maskAspectA.current =
-        maskElementA.videoWidth / maskElementA.videoHeight;
-      maskAspectB.current =
-        maskElementB.videoWidth / maskElementB.videoHeight;
 
       const lerpedAspectRatio = THREE.MathUtils.lerp(
         videoAspectA.current,
@@ -255,14 +209,6 @@ const TripVideoPlane = ({
       );
       materialRef.current.uniforms.textureB_aspectRatio.value.set(
         videoAspectB.current,
-        1,
-      );
-      materialRef.current.uniforms.maskA_aspectRatio.value.set(
-        maskAspectA.current,
-        1,
-      );
-      materialRef.current.uniforms.maskB_aspectRatio.value.set(
-        maskAspectB.current,
         1,
       );
       materialRef.current.uniforms.uvScale.value = scaleValue;
