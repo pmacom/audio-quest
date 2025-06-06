@@ -109,7 +109,9 @@ const TripVideoPlane = ({
       materialRef.current &&
       planeRef.current &&
       videoElementA &&
-      videoElementB
+      videoElementB &&
+      videoElementA.readyState >= 2 &&
+      videoElementB.readyState >= 2
     ) {
       materialRef.current.uniforms.videoMix.value = videoDirection;
       materialRef.current.uniforms.maskMix.value = maskDirection;
@@ -137,7 +139,11 @@ const TripVideoPlane = ({
       videoElementA &&
       videoElementB &&
       maskElementA &&
-      maskElementB
+      maskElementB &&
+      videoElementA.readyState >= 2 &&
+      videoElementB.readyState >= 2 &&
+      maskElementA.readyState >= 2 &&
+      maskElementB.readyState >= 2
     ) {
       const aspectRatioA = new THREE.Vector2(
         videoElementA.videoWidth / videoElementA.videoHeight,

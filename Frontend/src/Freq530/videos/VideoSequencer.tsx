@@ -5,6 +5,22 @@ import { useInterval } from 'usehooks-ts';
 import { shuffle } from 'fast-shuffle';
 import { VideoSourceEntry } from './videoList';
 
+async function preloadVideo(src: string): Promise<void> {
+  return new Promise(res => {
+    const vid = document.createElement('video');
+    vid.preload = 'auto';
+    vid.muted = true;
+    vid.src = src;
+    const done = () => {
+      vid.removeEventListener('canplaythrough', done);
+      vid.removeEventListener('error', done);
+      res();
+    };
+    vid.addEventListener('canplaythrough', done);
+    vid.addEventListener('error', done);
+  });
+}
+
 interface TripSequenceShufflerProps {
   videos: VideoSourceEntry[];
   masks: string[];
@@ -36,30 +52,25 @@ const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
   const videoIndexRef = useRef(1); // Start with the second video
   const maskIndexRef = useRef(1);  // Start with the second mask
 
-  useEffect(() => {
-    const videoElementA = document.createElement('video');
-    const videoElementB = document.createElement('video');
-    videoElementA.src = videoA.src;
-    videoElementB.src = videoB.src;
-  }, [videoA, videoB]);
 
-  useInterval(() => {
+  useInterval(async () => {
     if (videoDirection === 0) {
       const nextIndex = (videoIndexRef.current + 1) % videos.length;
+      await preloadVideo(videos[nextIndex].src);
       setVideoB(videos[nextIndex]);
       videoIndexRef.current = nextIndex;
     } else {
       const nextIndex = (videoIndexRef.current + 1) % videos.length;
+      await preloadVideo(videos[nextIndex].src);
       setVideoA(videos[nextIndex]);
       videoIndexRef.current = nextIndex;
     }
 
-    // GSAP animation to transition videoDirection
     gsap.to({ direction: videoDirection }, {
       direction: videoDirection === 0 ? 1 : 0,
       duration: videoTransitionDuration,
       onUpdate: function () {
-        setVideoDirection(this.targets()[0].direction);  // Update videoDirection directly
+        setVideoDirection(this.targets()[0].direction);
       },
       overwrite: true,
     });
@@ -87,9 +98,6 @@ const TripSequenceShuffler: React.FC<TripSequenceShufflerProps> = ({
     });
   }, maskHoldDuration * 1000);
 
-  useEffect(() => {
-    console.log({ videoA })
-  }, [videoA])
 
   return (
     <TripVideoPlane
