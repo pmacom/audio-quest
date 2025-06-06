@@ -1,4 +1,4 @@
-import { readdir, stat } from 'fs/promises'
+import { readdir, stat, access } from 'fs/promises'
 import path from 'path'
 import { NextResponse } from 'next/server'
 
@@ -17,11 +17,28 @@ async function collect(dir: string, baseUrl: string, res: string[] = []) {
 }
 
 export async function GET() {
-  const videoDir = path.join(process.cwd(), 'public', 'videos')
+  const candidates = [
+    path.join(process.cwd(), 'public', 'videos'),
+    path.join(process.cwd(), 'Frontend', 'public', 'videos'),
+  ]
+
+  let videoDir: string | null = null
+  for (const p of candidates) {
+    try {
+      await access(p)
+      videoDir = p
+      break
+    } catch {}
+  }
+
+  if (!videoDir) {
+    return NextResponse.json({ videos: [] })
+  }
+
   const files = await collect(videoDir, '/videos')
   const results = await Promise.all(
-    files.map(async p => {
-      const stats = await stat(path.join(process.cwd(), 'public', p))
+    files.map(async (p) => {
+      const stats = await stat(path.join(videoDir!, p.replace(/^\/videos\//, '')))
       return { path: p, name: path.basename(p), size: stats.size }
     })
   )
