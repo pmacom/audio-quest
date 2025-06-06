@@ -20,14 +20,19 @@ sudo apt install -y nodejs
 node --version
 npm --version
 
-# Install pnpm globally
+# Update npm to the latest version to avoid potential issues
+echo "Updating npm..."
+sudo npm install -g npm@latest
+npm --version
+
+# Install pnpm globally with sudo to avoid permission issues
 echo "Installing pnpm..."
-npm install -g pnpm
+sudo npm install -g pnpm
 pnpm --version
 
-# Install create-next-app globally (optional, for easy Next.js setup)
+# Install create-next-app globally with sudo
 echo "Installing create-next-app..."
-pnpm install -g create-next-app
+sudo pnpm install -g create-next-app
 
 # Verify create-next-app
 create-next-app --version
@@ -49,6 +54,6 @@ sleep 5 # Wait for the server to start
 curl http://localhost:3000 || echo "Failed to reach Next.js app. Check logs."
 
 # Clean up by stopping the dev server
-pkill -f "next dev"
+pkill -f "next dev" || true
 
 echo "Installation and setup complete! You can now use 'cd my-next-app' and 'pnpm dev' to start your Next.js app."
