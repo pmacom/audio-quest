@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { VideoManager } from "@/Freq530/video-manager/video-manager"
-import { VideoUpload } from "@/Freq530/video-manager/video-upload"
 import { DirectoryManager } from "@/Freq530/video-manager/directory-manager"
 import { TagManager } from "@/Freq530/video-manager/tag-manager"
 import { SourceManager } from "@/Freq530/video-manager/source-manager"
@@ -21,21 +20,44 @@ export default function Home() {
   const [tags, setTags] = useState<Tag[]>(defaultTags)
   const [selectedDirectory, setSelectedDirectory] = useState<string>("1")
 
-  // Load data from localStorage on mount
+  // Load videos from the public directory on mount
   useEffect(() => {
-    const savedVideos = localStorage.getItem("videoManager_videos")
-    const savedDirectories = localStorage.getItem("videoManager_directories")
-    const savedTags = localStorage.getItem("videoManager_tags")
+    async function load() {
+      const saved = localStorage.getItem("videoManager_videos")
+      const savedVideos: VideoFile[] = saved ? JSON.parse(saved) : []
 
-    if (savedVideos) {
-      setVideos(JSON.parse(savedVideos))
+      try {
+        const res = await fetch("/api/list-videos")
+        const data: { videos: { path: string; name: string; size: number }[] } =
+          await res.json()
+        const vids: VideoFile[] = data.videos.map((v) => {
+          const existing = savedVideos.find((sv) => sv.path === v.path)
+          return {
+            id: v.path,
+            name: v.name,
+            path: v.path,
+            directory: "/videos",
+            url: v.path,
+            loop: existing?.loop ?? false,
+            mirror: existing?.mirror ?? false,
+            tags: existing?.tags ?? [],
+            createdAt: existing?.createdAt ? new Date(existing.createdAt) : new Date(),
+            size: v.size,
+            duration: existing?.duration,
+          }
+        })
+        setVideos(vids)
+        setDirectories((prev) =>
+          prev.map((d) =>
+            d.id === "1" ? { ...d, videoCount: vids.length } : d
+          )
+        )
+        // video count already updated above
+      } catch {
+        // ignore errors
+      }
     }
-    if (savedDirectories) {
-      setDirectories(JSON.parse(savedDirectories))
-    }
-    if (savedTags) {
-      setTags(JSON.parse(savedTags))
-    }
+    load()
   }, [])
 
   // Save data to localStorage when state changes
@@ -51,19 +73,6 @@ export default function Home() {
     localStorage.setItem("videoManager_tags", JSON.stringify(tags))
   }, [tags])
 
-  const addVideo = (video: Omit<VideoFile, "id" | "createdAt">) => {
-    const newVideo: VideoFile = {
-      ...video,
-      id: Date.now().toString(),
-      createdAt: new Date(),
-    }
-    setVideos((prev) => [...prev, newVideo])
-
-    // Update directory video count
-    setDirectories((prev) =>
-      prev.map((dir) => (dir.id === selectedDirectory ? { ...dir, videoCount: dir.videoCount + 1 } : dir)),
-    )
-  }
 
   const updateVideo = (id: string, updates: Partial<VideoFile>) => {
     setVideos((prev) => prev.map((video) => (video.id === id ? { ...video, ...updates } : video)))
@@ -143,9 +152,8 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="videos" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="videos">Videos</TabsTrigger>
-          <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="directories">Directories</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
           <TabsTrigger value="sources">Sources</TabsTrigger>
@@ -171,23 +179,6 @@ export default function Home() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="upload" className="space-y-4">
-          <Card className="bg-white">
-            <CardHeader>
-              <CardTitle>Upload Videos</CardTitle>
-              <CardDescription>Upload video files to your selected directory</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <VideoUpload
-                directories={directories}
-                tags={tags}
-                selectedDirectory={selectedDirectory}
-                onSelectDirectory={setSelectedDirectory}
-                onAddVideo={addVideo}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="directories" className="space-y-4">
           <Card className="bg-white">
