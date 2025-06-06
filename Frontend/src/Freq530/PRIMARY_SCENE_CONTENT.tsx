@@ -8,7 +8,6 @@ import { VIDEO_SOURCES } from "./videos/videoList";
 import { MASK_SOURCES } from "./videos/maskList";
 
 export const PRIMARY_SCENE_CONTENT = () => {
-  const testNumber = 2;
   return (
     <>
       {/* <ShaderTest /> */}

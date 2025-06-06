@@ -61,9 +61,8 @@ const TripVideoPlane = ({
     { urls: [maskB], bounce: bounceMaskB },
   ], maskRate)
 
-  const { factorTest, widthTester } = useControls('TripVideoPlane', {
+  const { factorTest } = useControls('TripVideoPlane', {
     factorTest: { value: 0.3, min: 0, max: 1 },
-    widthTester: { value: 0.3, min: 0, max: 6, step: 0.1 },
   });
 
   useEffect(() => {
