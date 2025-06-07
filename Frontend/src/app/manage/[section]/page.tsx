@@ -6,9 +6,9 @@ interface Props {
 }
 
 export default function Page({ params }: Props) {
-  const section = params.section || 'videos'
-  if (!['videos', 'directories', 'tags', 'sources'].includes(section)) {
-    redirect('/manage/videos')
+  const section = params.section || 'manage'
+  if (!['manage', 'directories', 'tags'].includes(section)) {
+    redirect('/manage')
   }
   return <ManageContent section={section} />
 }

@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation'
+import { ManageContent } from './ManageContent'
 
 export default function Page() {
-  redirect('/manage/videos')
-  return null
+  return <ManageContent section="manage" />
 }

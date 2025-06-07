@@ -139,21 +139,20 @@ export function ManageContent({ section }: Props) {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="text-center space-y-2">
-        <h1 className="text-4xl font-bold">Video Manager</h1>
+        <h1 className="text-4xl font-bold">Manage Videos</h1>
         <p className="text-muted-foreground">
-          Upload, organize, and manage your video files with custom properties and tags
+          Upload, organize, and configure your videos and default sources
         </p>
       </div>
 
       <Tabs value={section} onValueChange={onTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="videos">Videos</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="manage">Manage</TabsTrigger>
           <TabsTrigger value="directories">Directories</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
-          <TabsTrigger value="sources">Sources</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="videos" className="space-y-4">
+        <TabsContent value="manage" className="space-y-4">
           <Card className="bg-white">
             <CardHeader>
               <CardTitle>Video Library</CardTitle>
@@ -169,6 +168,16 @@ export function ManageContent({ section }: Props) {
                 onUpdateVideo={updateVideo}
                 onDeleteVideo={deleteVideo}
               />
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white">
+            <CardHeader>
+              <CardTitle>Default Sources</CardTitle>
+              <CardDescription>Configure bounce behavior for bundled videos and masks</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SourceManager />
             </CardContent>
           </Card>
         </TabsContent>
@@ -201,17 +210,6 @@ export function ManageContent({ section }: Props) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="sources" className="space-y-4">
-          <Card className="bg-white">
-            <CardHeader>
-              <CardTitle>Source Bounce</CardTitle>
-              <CardDescription>Configure bounce behavior for default sources</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SourceManager />
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   )
