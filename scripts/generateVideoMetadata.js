@@ -23,7 +23,6 @@ function ensureDir(p) {
 async function generateThumbnail(videoPath, thumbPath) {
   await ensureDir(path.dirname(thumbPath));
   return new Promise((resolve, reject) => {
-    // Extract frame at 1 second
     const ff = spawn('ffmpeg', [
       '-y',
       '-i',
@@ -32,6 +31,8 @@ async function generateThumbnail(videoPath, thumbPath) {
       '00:00:01',
       '-vframes',
       '1',
+      '-vf',
+      'scale=320:-1',
       thumbPath,
     ]);
     ff.on('close', code => {
@@ -48,9 +49,9 @@ async function build(dir, outJson, thumbDir) {
   const data = [];
   for (const file of files) {
     const rel = path.relative(absDir, file).replace(/\\/g, '/');
-    const webPath = '/'+path.join(path.basename(dir), rel).replace(/\\/g, '/');
+    const webPath = '/' + path.join(path.basename(dir), rel).replace(/\\/g, '/');
     const thumbRel = rel.replace(/\.[^/.]+$/, '.jpg');
-    const thumbWeb = '/'+path.join(path.basename(thumbDir), thumbRel).replace(/\\/g, '/');
+    const thumbWeb = '/' + path.join('thumbnails', path.basename(thumbDir), thumbRel).replace(/\\/g, '/');
     const thumbFile = path.join(absThumbDir, thumbRel);
     if (!fs.existsSync(thumbFile)) {
       try {
@@ -66,8 +67,16 @@ async function build(dir, outJson, thumbDir) {
 
 async function main() {
   const base = path.join(__dirname, '..', 'Frontend', 'public');
-  await build(path.join(base, 'videos'), path.join(base, 'video-data.json'), path.join(base, 'thumbnails'));
-  await build(path.join(base, 'masks'), path.join(base, 'mask-data.json'), path.join(base, 'mask-thumbnails'));
+  await build(
+    path.join(base, 'videos'),
+    path.join(base, 'video-data.json'),
+    path.join(base, 'thumbnails', 'videos')
+  );
+  await build(
+    path.join(base, 'masks'),
+    path.join(base, 'mask-data.json'),
+    path.join(base, 'thumbnails', 'masks')
+  );
 }
 
 main().catch(err => {

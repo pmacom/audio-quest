@@ -21,6 +21,8 @@ export function SourceManager() {
   const [masks, setMasks] = useState<SourceEntry[]>([])
   const [visibleVideos, setVisibleVideos] = useState(12)
   const [visibleMasks, setVisibleMasks] = useState(12)
+  const [previewVideo, setPreviewVideo] = useState<number | null>(null)
+  const [previewMask, setPreviewMask] = useState<number | null>(null)
 
   // Load sources from JSON files and merge with stored settings
   useEffect(() => {
@@ -70,8 +72,23 @@ export function SourceManager() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {videos.slice(0, visibleVideos).map((video, idx) => (
-              <div key={video.src} className="space-y-2">
-                {video.thumbnail ? (
+              <div
+                key={video.src}
+                className="space-y-2 cursor-pointer"
+                onClick={() =>
+                  setPreviewVideo(previewVideo === idx ? null : idx)
+                }
+              >
+                {previewVideo === idx ? (
+                  <video
+                    src={video.src}
+                    muted
+                    loop
+                    playsInline
+                    autoPlay
+                    className="w-full h-32 object-cover rounded"
+                  />
+                ) : video.thumbnail ? (
                   <img
                     src={video.thumbnail}
                     alt="thumbnail"
@@ -141,8 +158,23 @@ export function SourceManager() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {masks.slice(0, visibleMasks).map((mask, idx) => (
-              <div key={mask.src} className="space-y-2">
-                {mask.thumbnail ? (
+              <div
+                key={mask.src}
+                className="space-y-2 cursor-pointer"
+                onClick={() =>
+                  setPreviewMask(previewMask === idx ? null : idx)
+                }
+              >
+                {previewMask === idx ? (
+                  <video
+                    src={mask.src}
+                    muted
+                    loop
+                    playsInline
+                    autoPlay
+                    className="w-full h-32 object-cover rounded"
+                  />
+                ) : mask.thumbnail ? (
                   <img
                     src={mask.thumbnail}
                     alt="thumbnail"
