@@ -6,102 +6,85 @@ import { animated } from '@react-spring/three';
 import VideoFadeShader from './VideoFadeShader';
 import { useControls } from 'leva';
 import { useFreq530 } from '../audio/store/useFreq530';
+import { useVideoTexturesOptimized } from '../hooks/useVideoTextureOptimized';
 
 interface TripVideoPlaneProps {
-  amplitude: number;
   videoA: string;
   videoB: string;
   maskA: string;
   maskB: string;
+  bounceVideoA?: boolean;
+  bounceVideoB?: boolean;
+  bounceMaskA?: boolean;
+  bounceMaskB?: boolean;
   videoDirection: number; // Value between 0 and 1 for transitioning between videos
   maskDirection: number;  // Value between 0 and 1 for transitioning between masks
 }
 
+// Temporary flag controlling whether the plane adjusts its scale based on
+// incoming video aspect ratios. This remains off while we debug sizing issues.
+const ENABLE_DYNAMIC_SCALING = false;
+
 const TripVideoPlane = ({
-  // amplitude,
   videoA,
   videoB,
   maskA,
   maskB,
+  bounceVideoA,
+  bounceVideoB,
+  bounceMaskA,
+  bounceMaskB,
   videoDirection,
   maskDirection,
 }: TripVideoPlaneProps) => {
   const amplitude = useFreq530(state => state.values.amplitude)
   const planeRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<ShaderMaterial>(null);
+  // Store aspect ratio values so we can smoothly transition when sources change
+  const videoAspectA = useRef(1);
+  const videoAspectB = useRef(1);
 
-  const videoElementA = useMemo(() => document.createElement('video'), []);
-  const videoElementB = useMemo(() => document.createElement('video'), []);
-  const maskElementA = useMemo(() => document.createElement('video'), []);
-  const maskElementB = useMemo(() => document.createElement('video'), []);
+  const {
+    textures: [videoTextureA, videoTextureB],
+    videos: [videoElementA, videoElementB],
+  } = useVideoTexturesOptimized(
+    [
+      { urls: [videoA], bounce: bounceVideoA },
+      { urls: [videoB], bounce: bounceVideoB },
+    ],
+    amplitude
+  )
 
-  const videoTextureA = useMemo(() => new THREE.VideoTexture(videoElementA), [videoElementA]);
-  const videoTextureB = useMemo(() => new THREE.VideoTexture(videoElementB), [videoElementB]);
-  const maskTextureA = useMemo(() => new THREE.VideoTexture(maskElementA), [maskElementA]);
-  const maskTextureB = useMemo(() => new THREE.VideoTexture(maskElementB), [maskElementB]);
+  const maskRate = Math.min(Math.max(amplitude / 2, 0.1), 4)
+  const {
+    textures: [maskTextureA, maskTextureB],
+    videos: [maskElementA, maskElementB],
+  } = useVideoTexturesOptimized([
+    { urls: [maskA], bounce: bounceMaskA },
+    { urls: [maskB], bounce: bounceMaskB },
+  ], maskRate)
 
-  const { factorTest, widthTester } = useControls('TripVideoPlane', {
+  const { factorTest } = useControls('TripVideoPlane', {
     factorTest: { value: 0.3, min: 0, max: 1 },
-    widthTester: { value: 0.3, min: 0, max: 6, step: 0.1 },
   });
 
   useEffect(() => {
-    videoElementA.src = videoA;
-    videoElementB.src = videoB;
-    maskElementA.src = maskA;
-    maskElementB.src = maskB;
-
-    for (const video of [videoElementA, videoElementB, maskElementA, maskElementB]) {
-      video.loop = true;
-      video.muted = true;
-      video.crossOrigin = 'anonymous';
-    }
-
-    const handleCanPlayThrough = () => {
-      videoElementA.play().catch(e => console.error("Video A play error:", e));
-      videoElementB.play().catch(e => console.error("Video B play error:", e));
-      maskElementA.play().catch(e => console.error("Mask A play error:", e));
-      maskElementB.play().catch(e => console.error("Mask B play error:", e));
-
-      videoTextureA.needsUpdate = true;
-      videoTextureB.needsUpdate = true;
-      maskTextureA.needsUpdate = true;
-      maskTextureB.needsUpdate = true;
-
-      updateMaterialAspectRatios();
-    };
-
-    videoElementA.addEventListener('canplaythrough', handleCanPlayThrough);
-    videoElementB.addEventListener('canplaythrough', handleCanPlayThrough);
-    maskElementA.addEventListener('canplaythrough', handleCanPlayThrough);
-    maskElementB.addEventListener('canplaythrough', handleCanPlayThrough);
-
-    return () => {
-      videoElementA.removeEventListener('canplaythrough', handleCanPlayThrough);
-      videoElementB.removeEventListener('canplaythrough', handleCanPlayThrough);
-      maskElementA.removeEventListener('canplaythrough', handleCanPlayThrough);
-      maskElementB.removeEventListener('canplaythrough', handleCanPlayThrough);
-    };
-  }, [videoA, videoB, maskA, maskB]);
-
-  useEffect(() => {
-    videoElementA.playbackRate = amplitude;
-    videoElementB.playbackRate = amplitude;
-    maskElementA.playbackRate = Math.min(Math.max(amplitude / 2, 0.1), 4);
-    maskElementB.playbackRate = Math.min(Math.max(amplitude / 2, 0.1), 4);
-  }, [amplitude]);
-
-  useEffect(() => {
-    if (materialRef.current) {
+    if (
+      materialRef.current &&
+      videoTextureA &&
+      videoTextureB &&
+      maskTextureA &&
+      maskTextureB
+    ) {
       materialRef.current.uniforms.textureA.value = videoTextureA;
       materialRef.current.uniforms.textureB.value = videoTextureB;
-      materialRef.current.uniforms.amplitude.value = amplitude;
       materialRef.current.uniforms.maskA.value = maskTextureA;
       materialRef.current.uniforms.maskB.value = maskTextureB;
-
-      updateMaterialAspectRatios();
+      materialRef.current.uniforms.amplitude.value = amplitude;
+    //  updateMaterialAspectRatios();
     }
-  }, [videoTextureA, videoTextureB, maskTextureA, maskTextureB]);
+  }, [videoTextureA, videoTextureB, maskTextureA, maskTextureB, amplitude]);
+
 
   const shaderMaterial = useMemo(() => {
     return new ShaderMaterial({
@@ -117,8 +100,6 @@ const TripVideoPlane = ({
         factorTest: { value: 0.4 },
         textureA_aspectRatio: { value: new THREE.Vector2(1, 1) },
         textureB_aspectRatio: { value: new THREE.Vector2(1, 1) },
-        maskA_aspectRatio: { value: new THREE.Vector2(1, 1) },
-        maskB_aspectRatio: { value: new THREE.Vector2(1, 1) },
         uvScale: { value: 1.0 },
         maskContrast: { value: 1.0 },
         maskBrightness: { value: 1.0 },
@@ -132,68 +113,121 @@ const TripVideoPlane = ({
   }, [videoTextureA, videoTextureB, maskTextureA, maskTextureB, videoDirection, maskDirection]);
 
   useFrame(() => {
-    if (materialRef.current && planeRef.current) {
+    if (
+      materialRef.current &&
+      planeRef.current &&
+      videoElementA &&
+      videoElementB &&
+      videoElementA.readyState >= 2 &&
+      videoElementB.readyState >= 2
+    ) {
       materialRef.current.uniforms.videoMix.value = videoDirection;
       materialRef.current.uniforms.maskMix.value = maskDirection;
       materialRef.current.uniforms.factorTest.value = factorTest;
 
-      const aspectRatioA = videoElementA.videoWidth / videoElementA.videoHeight;
-      const aspectRatioB = videoElementB.videoWidth / videoElementB.videoHeight;
+      if (
+        videoElementA.videoWidth > 0 &&
+        videoElementA.videoHeight > 0 &&
+        videoElementB.videoWidth > 0 &&
+        videoElementB.videoHeight > 0
+      ) {
+        const targetAspectA =
+          videoElementA.videoWidth / videoElementA.videoHeight;
+        const targetAspectB =
+          videoElementB.videoWidth / videoElementB.videoHeight;
 
-      // Lerp between aspect ratios based on videoMix
-      const lerpedAspectRatio = THREE.MathUtils.lerp(aspectRatioA, aspectRatioB, videoDirection);
+        // Smoothly update stored aspect ratios
+        const lerpAmt = 0.1;
+        // videoAspectA.current = THREE.MathUtils.lerp(
+        //   videoAspectA.current,
+        //   targetAspectA,
+        //   lerpAmt,
+        // );
+        // videoAspectB.current = THREE.MathUtils.lerp(
+        //   videoAspectB.current,
+        //   targetAspectB,
+        //   lerpAmt,
+        // );
 
-      // Adjust the plane's scale to match the lerped aspect ratio
-      const scaleX = 1; // Width remains constant
-      const scaleY = 1 / lerpedAspectRatio; // Height is adjusted based on aspect ratio
+        // const lerpedAspectRatio = THREE.MathUtils.lerp(
+        //   videoAspectA.current,
+        //   videoAspectB.current,
+        //   videoDirection,
+        // );
 
-      planeRef.current.scale.set(scaleX, scaleY, 1);
+        // const targetScaleY = 1 / lerpedAspectRatio;
+        // if (ENABLE_DYNAMIC_SCALING) {
+        //   planeRef.current.scale.set(1, targetScaleY, 1);
+        // } else {
+        //   planeRef.current.scale.set(1, 1, 1);
+        // }
 
-      updateMaterialAspectRatios();
+        materialRef.current.uniforms.textureA_aspectRatio.value.set(
+          videoAspectA.current,
+          1,
+        );
+        materialRef.current.uniforms.textureB_aspectRatio.value.set(
+          videoAspectB.current,
+          1,
+        );
+
+        // materialRef.current.uniforms.uvScale.value = scaleValue;
+        materialRef.current.uniforms.maskContrast.value = maskContrast;
+        materialRef.current.uniforms.maskBrightness.value = brightness;
+      }
     }
   });
 
   const updateMaterialAspectRatios = () => {
-    if (materialRef.current) {
-      const aspectRatioA = new THREE.Vector2(
-        videoElementA.videoWidth / videoElementA.videoHeight,
-        1
-      );
-      const aspectRatioB = new THREE.Vector2(
-        videoElementB.videoWidth / videoElementB.videoHeight,
-        1
-      );
+    if (
+      materialRef.current &&
+      videoElementA &&
+      videoElementB &&
+      videoElementA.readyState >= 2 &&
+      videoElementB.readyState >= 2 &&
+      videoElementA.videoWidth > 0 &&
+      videoElementA.videoHeight > 0 &&
+      videoElementB.videoWidth > 0 &&
+      videoElementB.videoHeight > 0
+    ) {
+      videoAspectA.current =
+        videoElementA.videoWidth / videoElementA.videoHeight;
+      videoAspectB.current =
+        videoElementB.videoWidth / videoElementB.videoHeight;
 
-      const maskAspectRatioA = new THREE.Vector2(
-        maskElementA.videoWidth / maskElementA.videoHeight,
-        1
+      const lerpedAspectRatio = THREE.MathUtils.lerp(
+        videoAspectA.current,
+        videoAspectB.current,
+        videoDirection,
       );
-      const maskAspectRatioB = new THREE.Vector2(
-        maskElementB.videoWidth / maskElementB.videoHeight,
-        1
-      );
+      if (ENABLE_DYNAMIC_SCALING) {
+        planeRef.current?.scale.set(1, 1 / lerpedAspectRatio, 1);
+      } else {
+        planeRef.current?.scale.set(1, 1, 1);
+      }
 
-      materialRef.current.uniforms.textureA_aspectRatio.value = aspectRatioA;
-      materialRef.current.uniforms.textureB_aspectRatio.value = aspectRatioB;
-      materialRef.current.uniforms.maskA_aspectRatio.value = maskAspectRatioA;
-      materialRef.current.uniforms.maskB_aspectRatio.value = maskAspectRatioB;
-      materialRef.current.uniforms.uvScale.value = scaleValue;
-      materialRef.current.uniforms.maskContrast.value = maskContrast;
-      materialRef.current.uniforms.maskBrightness.value = brightness;
+      // materialRef.current.uniforms.textureA_aspectRatio.value.set(
+      //   videoAspectA.current,
+      //   1,
+      // );
+      // materialRef.current.uniforms.textureB_aspectRatio.value.set(
+      //   videoAspectB.current,
+      //   1,
+      // );
+      // materialRef.current.uniforms.uvScale.value = scaleValue;
+      // materialRef.current.uniforms.maskContrast.value = maskContrast;
+      // materialRef.current.uniforms.maskBrightness.value = brightness;
     }
   };
 
-  const { scaleValue, scaleX, scaleY, scaleZ, maskContrast, brightness } = useControls('TripVideoPlane', {
+  const { scaleValue, maskContrast, brightness } = useControls('TripVideoPlane', {
     scaleValue: { value: 2.0, min: 0.1, max: 2.0 },
-    scaleX: { value: 1.2, min: -3, max: 3, step: 0.1 },
-    scaleY: { value: 1.0, min: -3, max: 3, step: 0.1 },
-    scaleZ: { value: 0.9, min: -3, max: 3, step: 0.1 },
     maskContrast: { value: 1.0, min: 0, max: 3, step: 0.1 },
     brightness: { value: 2.0, min: 0, max: 3, step: 0.1 },
   });
 
   return (
-    <group scale={[scaleX, scaleY, scaleZ]}>
+    <group scale={[1, 1, 1]}>
       <animated.mesh ref={planeRef} position={[0, 0, 0]}>
         <sphereGeometry args={[15, 32, 16, 0, Math.PI/1]} /> 
         {/* <planeGeometry args={[1, 1, 1, 1]} /> */}
