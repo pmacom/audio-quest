@@ -24,6 +24,7 @@ interface VideoCardProps {
 export function VideoCard({ video, tags, viewMode, onUpdate, onDelete, onPlay }: VideoCardProps) {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [editingTags, setEditingTags] = useState<string[]>(video.tags)
+  const [preview, setPreview] = useState(false)
 
   const handleTagToggle = (tagName: string, checked: boolean) => {
     if (checked) {
@@ -59,6 +60,22 @@ export function VideoCard({ video, tags, viewMode, onUpdate, onDelete, onPlay }:
   if (viewMode === "list") {
     return (
       <Card className="flex items-center p-4 bg-white">
+        <div className="w-32 h-20 mr-4 cursor-pointer" onClick={() => setPreview((p) => !p)}>
+          {preview ? (
+            <video
+              src={video.url}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            />
+          ) : video.thumbnail ? (
+            <img src={video.thumbnail} alt="thumbnail" className="w-full h-full object-cover" />
+          ) : (
+            <video src={video.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+          )}
+        </div>
         <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
           <div className="md:col-span-2">
             <h3 className="font-semibold truncate">{video.name}</h3>
@@ -152,6 +169,22 @@ export function VideoCard({ video, tags, viewMode, onUpdate, onDelete, onPlay }:
 
   return (
     <Card className="overflow-hidden bg-white">
+      <div className="w-full h-40 cursor-pointer" onClick={() => setPreview((p) => !p)}>
+        {preview ? (
+          <video
+            src={video.url}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+          />
+        ) : video.thumbnail ? (
+          <img src={video.thumbnail} alt="thumbnail" className="w-full h-full object-cover" />
+        ) : (
+          <video src={video.url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+        )}
+      </div>
       <CardHeader className="p-4">
         <div className="flex items-start justify-between">
           <h3 className="font-semibold truncate flex-1">{video.name}</h3>

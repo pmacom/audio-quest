@@ -5,6 +5,7 @@ export interface VideoFile {
   path: string
   directory: string
   url: string
+  thumbnail?: string
   loop: boolean
   mirror: boolean
   tags: string[]
