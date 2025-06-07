@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+let ffmpegPath = 'ffmpeg';
+try {
+  ffmpegPath = require('ffmpeg-static') || 'ffmpeg';
+} catch {}
 
 async function collectFiles(dir) {
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
@@ -23,7 +27,7 @@ function ensureDir(p) {
 async function generateThumbnail(videoPath, thumbPath) {
   await ensureDir(path.dirname(thumbPath));
   return new Promise((resolve, reject) => {
-    const ff = spawn('ffmpeg', [
+    const ff = spawn(ffmpegPath, [
       '-y',
       '-i',
       videoPath,
@@ -39,6 +43,7 @@ async function generateThumbnail(videoPath, thumbPath) {
       if (code === 0) resolve();
       else reject(new Error('ffmpeg exit ' + code));
     });
+    ff.on('error', err => reject(err));
   });
 }
 

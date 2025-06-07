@@ -5,7 +5,7 @@ This project combines a Rust audio processor with a Next.js frontend. The audio 
 ## Prerequisites
 - **Node.js** and **pnpm** for the frontend
 - **Rust** toolchain for the audio processor
-- **ffmpeg** for generating video thumbnails
+- **ffmpeg** for generating video thumbnails (the script also uses `ffmpeg-static` if available)
 
 ## Setup
 1. Install Node dependencies:
@@ -13,7 +13,7 @@ This project combines a Rust audio processor with a Next.js frontend. The audio 
    cd Frontend
    pnpm install
    ```
-2. Generate video metadata and thumbnails (requires `ffmpeg`):
+2. Generate video metadata and thumbnails:
    ```bash
    pnpm run generate-video-data
    ```
