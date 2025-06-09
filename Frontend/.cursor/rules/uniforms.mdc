@@ -1,0 +1,58 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Definitions of each uniform
+
+  uTime means "Time since the start of the shader",
+  
+  uAdjustedAccumulatedTime means "Time that has been impacted by the amplitude of the audio. Time speeds up as the amplitude ncreases, and slows down when the amplitude decreases. This is the overall time value based on all of these previous events and where time should be according to them.",
+  
+  uSinValue means "Sin Value of the audio based on the accumulated time",
+  
+  uCosValue means "Cos Value of the audio based on the accumulated time",
+  
+  uMirrorValue means "Mirror Value of the audio based on the accumulated time",
+  
+  uMirrorDirection means "Mirror Direction of the audio based on the accumulated time, which is either 1 or -1",
+  
+  uEasedMirrorValue means "Eased Mirror Value of the audio based on the accumulated time, that has been eased in and out according to the mirror direction",
+  
+  uEasedMirrorDirection means "Eased Mirror Direction of the audio based on the accumulated time, which is either 1 or -1",
+  
+  uEasedMirrorRangeValue means "Eased Mirror Range Value of the audio based on the accumulated time, which is the value that is used to determine the range of the meansmirror, it fluctuates between the min and max values",
+  
+  uEasedMirrorRangeMin means "Eased Mirror Range Min of the audio based on the accumulated time, which is the minimum value that the mirror can reach",
+  
+  uEasedMirrorRangeMax means "Eased Mirror Range Max of the audio based on the accumulated time, which is the maximum value that the mirror can reach",
+  
+  uEasedMirrorRangeDirection means "Eased Mirror Range Direction of the audio based on the accumulated time, which is either 1 or -1",
+  
+  uLow means "Low Frequency of the audio based on the accumulated time",
+  
+  uMid means "Mid Frequency of the audio based on the accumulated time",
+  
+  uHigh means "High Frequency of the audio based on the accumulated time",
+  
+  uKick means "Kick Frequency of the audio based on the accumulated time",
+  
+  uSnare means "Snare Frequency of the audio based on the accumulated time",
+  
+  uHihat means "Hihat Frequency of the audio based on the accumulated time",
+  
+  uVocalLikelihood means "Vocal Likelihood of the audio based on the accumulated time",
+  
+  uAmplitude means "Amplitude of the audio based on the accumulated time",
+  
+  uRawAmplitude means "Raw Amplitude of the audio based on the accumulated time",
+  
+  uBeatIntensity means "Beat Intensity of the audio based on the accumulated time",
+  
+  uBps means "Beats Per Second of the audio based on the accumulated time",
+  
+  uSnareAverage means "Snare Average of the audio based on the accumulated time",
+  
+  uHihatAverage means "Hihat Average of the audio based on the accumulated time",
+  
+  uKickAverage means "Kick Average of the audio based on the accumulated time"

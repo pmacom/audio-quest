@@ -1,0 +1,134 @@
+html, body {
+  background: black;
+}
+/* Force dark theme for all /manage routes */
+.manage-dark-theme {
+  background-color: hsl(0 0% 3.9%) !important;
+  color: hsl(0 0% 98%) !important;
+  min-height: 100vh;
+}
+
+/* Override card backgrounds */
+.manage-dark-theme [data-slot="card"] {
+  background-color: hsl(0 0% 3.9%) !important;
+  color: hsl(0 0% 98%) !important;
+  border-color: hsl(0 0% 14.9%) !important;
+}
+
+/* Force dark theme for all card content */
+.manage-dark-theme [data-slot="card-content"] {
+  color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme [data-slot="card-header"] {
+  color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme [data-slot="card-title"] {
+  color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme [data-slot="card-description"] {
+  color: hsl(0 0% 63.9%) !important;
+}
+
+/* Switch styling */
+.manage-dark-theme [data-slot="switch"] {
+  background-color: hsl(0 0% 14.9%) !important;
+}
+
+.manage-dark-theme [data-slot="switch"][data-state="checked"] {
+  background-color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme [data-slot="switch-thumb"] {
+  background-color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme [data-slot="switch"][data-state="checked"] [data-slot="switch-thumb"] {
+  background-color: hsl(0 0% 9%) !important;
+}
+
+/* Slider styling */
+.manage-dark-theme [data-slot="slider-track"] {
+  background-color: hsl(0 0% 14.9%) !important;
+}
+
+.manage-dark-theme [data-slot="slider-range"] {
+  background-color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme [data-slot="slider-thumb"] {
+  background-color: hsl(0 0% 3.9%) !important;
+  border-color: hsl(0 0% 98%) !important;
+}
+
+/* Navigation tabs */
+.manage-dark-theme .bg-muted {
+  background-color: hsl(0 0% 14.9%) !important;
+}
+
+.manage-dark-theme .text-muted-foreground {
+  color: hsl(0 0% 63.9%) !important;
+}
+
+.manage-dark-theme .text-foreground {
+  color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme .bg-background {
+  background-color: hsl(0 0% 3.9%) !important;
+}
+
+/* Labels and text */
+.manage-dark-theme label {
+  color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme span {
+  color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme .text-muted-foreground {
+  color: hsl(0 0% 63.9%) !important;
+}
+
+/* Button styling */
+.manage-dark-theme button {
+  color: hsl(0 0% 98%) !important;
+}
+
+.manage-dark-theme button:hover {
+  color: hsl(0 0% 98%) !important;
+}
+
+/* Ensure all text is visible */
+.manage-dark-theme * {
+  border-color: hsl(0 0% 14.9%) !important;
+}
+
+/* Override any white backgrounds */
+.manage-dark-theme .bg-white {
+  background-color: hsl(0 0% 3.9%) !important;
+}
+
+/* Override any light colors */
+.manage-dark-theme .text-black,
+.manage-dark-theme .text-gray-900,
+.manage-dark-theme .text-slate-900 {
+  color: hsl(0 0% 98%) !important;
+}
+
+/* Thumbnail hover overlay */
+.manage-dark-theme .group:hover .bg-black\/10 {
+  background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+.manage-dark-theme .bg-black\/80 {
+  background-color: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Primary text color for links */
+.manage-dark-theme .text-primary {
+  color: hsl(0 0% 98%) !important;
+} 

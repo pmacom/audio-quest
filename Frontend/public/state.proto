@@ -1,0 +1,45 @@
+syntax = "proto3";
+message PrimaryFreq530State {
+  double time = 1;
+  double adjusted_time = 2;
+  double sin = 3;
+  double cos = 4;
+  double sin_normal = 5;
+  double cos_normal = 6;
+  double adjusted_sin = 7;
+  double adjusted_cos = 8;
+  double adjusted_sin_normal = 9;
+  double adjusted_cos_normal = 10;
+  double low = 11;
+  double mid = 12;
+  double high = 13;
+  double kick = 14;
+  double snare = 15;
+  double hihat = 16;
+  double vocal_likelihood = 17;
+  double amplitude = 18;
+  double raw_amplitude = 19;
+  double beat_intensity = 20;
+  double bps = 21;
+
+  // Dynamic normalization fields
+  double low_dynamic = 22;
+  double mid_dynamic = 23;
+  double high_dynamic = 24;
+  double kick_dynamic = 25;
+  double snare_dynamic = 26;
+  double hihat_dynamic = 27;
+  double amplitude_dynamic = 28;
+  double raw_amplitude_dynamic = 29;
+
+  // New fields
+  double spectral_flux           = 30;
+  repeated double beat_times     = 31;
+  double last_beat_time          = 32;
+  repeated uint32 quantized_bands = 40;
+  double spectral_centroid = 41;
+  optional bytes spectrogram_png = 42;
+  repeated double chromagram = 43;
+  double beat_phase = 44;
+  repeated double frequency_grid_map = 45;
+}

@@ -1,0 +1,357 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Your goal is to create a formulaic, documented process for transforming a minified GLSL shader (like the one you provided) into a React Three Fiber (R3F) shader component, with a focus on easily identifying and assigning critical variables to audio-driven uniforms (e.g., `uSinNormalValue`, `uCosNormalValue`, etc.) for dynamic tweaking. You also want to ensure that developers can systematically integrate these uniforms and experiment with their values in a predictable way. Below, I’ll outline a clear process, apply it to your minified shader and the provided `ShaderTest` component, and refine the code to incorporate your tweaks while making it easy to assign other uniforms from the available set.
+
+### Step-by-Step Process for Converting Minified GLSL to R3F Shader
+
+#### 1. **Parse and Expand the Minified GLSL**
+   - **Objective**: Convert the minified shader into readable GLSL code with proper formatting and variable names.
+   - **Steps**:
+     - Identify the main components: uniforms, varying variables, loops, and output (`gl_FragColor`).
+     - Replace shorthand variables (e.g., `o` for color, `t` for time) with descriptive names (e.g., `color`, `uAdjustedAccumulatedTime`).
+     - Add comments to explain the purpose of each section (e.g., ray-marching, fractal summation, color accumulation).
+   - **Example Input (Minified)**:
+     ```glsl
+     for(float i,z,d;i++<1e2;o+=vec4(z/7.,2,3,1)/d){vec3 p=z*normalize(FC.rgb*2.-r.xyy);p.z-=5.*t;p.xy*=mat2(cos(z*.1+t*.1+vec4(0,33,11,0)));for(d=1.;d<9.;d/=.7)p+=cos(p.yzx*d+t)/d;z+=d=.02+abs(2.-dot(cos(p),sin(p.yzx*.6)))/8.;}o=tanh(o*o/1e7);
+     ```
+   - **Expanded Output**:
+     ```glsl
+     uniform float uAdjustedAccumulatedTime;
+     varying vec2 vUv;
+     void main() {
+       vec2 fragCoord = vUv;
+       vec3 r = vec3(1.0, 1.0, 0.0);
+       vec3 FC = vec3(fragCoord, 0.0);
+       vec4 color = vec4(0.0);
+       float i = 0.0;
+       float z = 0.0;
+       float d = 0.0;
+       for (; i < 100.0; i++) {
+         vec3 p = z * normalize(FC.rgb * 2.0 - r.xyy);
+         p.z -= 5.0 * uAdjustedAccumulatedTime;
+         p.xy *= mat2(cos(z * 0.1 + uAdjustedAccumulatedTime * 0.1 + vec4(0.0, 33.0, 11.0, 0.0)));
+         for (d = 1.0; d < 9.0; d /= 0.7) {
+           p += cos(p.yzx * d + uAdjustedAccumulatedTime) / d;
+         }
+         d = 0.02 + abs(2.0 - dot(cos(p), sin(p.yzx * 0.6))) / 8.0;
+         z += d;
+         color += vec4(z / 7.0, 2.0, 3.0, 1.0) / d;
+       }
+       color = tanh(color * color / 1e7);
+       gl_FragColor = color;
+     }
+     ```
+
+#### 2. **Identify Critical Variables for Animation**
+   - **Objective**: Pinpoint variables that significantly affect the shader’s visual output (e.g., time, step size, color scaling).
+   - **Steps**:
+     - **Time Variables**: Look for uniforms like `t` (often time, e.g., `uAdjustedAccumulatedTime`) that drive animation (e.g., in `p.z -= 5.*t` or rotation matrices).
+     - **Step Size**: Identify variables controlling ray-marching steps (e.g., `d` in `z += d`).
+     - **Color Scaling**: Find factors in color accumulation (e.g., `color += vec4(z / 7.0, 2.0, 3.0, 1.0) / d`) or final transformations (e.g., `tanh(o*o/1e7)`).
+     - **Pattern Modifiers**: Check for variables affecting fractal patterns (e.g., in `cos(p.yzx * d + t)`).
+   - **From Example**:
+     - `uAdjustedAccumulatedTime` (affects position, rotation, fractal summation).
+     - `d` (step size, impacts pattern density and color intensity).
+     - `z` (accumulated distance, scales scene).
+     - `1e7` (color transformation factor, controls saturation).
+
+#### 3. **Map to Audio Uniforms**
+   - **Objective**: Assign critical variables to audio-driven uniforms (e.g., `uSinNormalValue`, `uCosNormalValue`, `uLow`, etc.) for dynamic effects.
+   - **Steps**:
+     - **List Available Uniforms**: Use the provided list (e.g., `uSinNormalValue`, `uAmplitude`, `uKick`, etc.).
+     - **Match Semantics**:
+       - Time-based effects (`uAdjustedAccumulatedTime`) can be scaled by `uAmplitude` or `uBeatIntensity` for rhythm-driven animation.
+       - Pattern density (`d`, `z`) can use `uSinNormalValue` or `uCosNormalValue` for oscillating effects.
+       - Color intensity can be modulated by `uLow`, `uMid`, or `uHigh` for frequency-based color shifts.
+     - **Introduce Scaling Uniforms**: Add control uniforms (e.g., `timeScale`, `patternDensity`) to multiply audio uniforms, allowing easy tweaking.
+     - **Default to Safe Values**: Use small multipliers (e.g., 0.1, 0.01) to avoid extreme effects during initial testing.
+   - **From Your Code**:
+     - You used `uSinNormalValue` in `p.z -= (50.0 * uSinNormalValue/20.0) * (uAdjustedAccumulatedTime * (uSinNormalValue * 0.000015))` and `uCosNormalValue` in `vec3 p = z * normalize(FC.rgb * (uCosNormalValue * 1.15) - r.xyy)`.
+     - These are good choices for oscillation but need careful scaling to avoid erratic behavior (e.g., `0.000015` is very small, suggesting trial-and-error).
+
+#### 4. **Add Control Uniforms**
+   - **Objective**: Introduce uniforms to scale the impact of audio uniforms, named after their visual effect (e.g., `timeScale`, `colorIntensity`).
+   - **Steps**:
+     - Declare new uniforms in GLSL (e.g., `uniform float timeScale;`).
+     - Initialize them to 1.0 in the R3F component’s uniforms object.
+     - Apply them to critical calculations (e.g., `uAdjustedAccumulatedTime * timeScale`).
+   - **Example**:
+     - `timeScale`: Scales `uAdjustedAccumulatedTime` for animation speed.
+     - `patternDensity`: Scales `uSinNormalValue` for pattern density.
+     - `colorIntensity`: Scales the `1e7` factor in `tanh`.
+
+#### 5. **Integrate with R3F Component**
+   - **Objective**: Create a reusable R3F component that updates uniforms dynamically and supports tweaking via tools like `leva`.
+   - **Steps**:
+     - Define uniforms in the component, including audio-driven and control uniforms.
+     - Use a hook (e.g., `useAudioUniforms`) to update uniforms based on audio state or elapsed time (as in your code).
+     - Optionally, add `leva` controls for real-time tweaking of control uniforms.
+   - **From Your Code**:
+     - Your `useAudioUniforms` hook updates `uAdjustedAccumulatedTime`, `uSinNormalValue`, and `uCosNormalValue` using `clock.elapsedTime`, which is a good fallback for testing without audio.
+
+#### 6. **Document and Test**
+   - **Objective**: Provide clear documentation for developers and test the shader with different uniform assignments.
+   - **Steps**:
+     - Comment the GLSL code to explain each uniform’s role and suggested audio uniform mappings.
+     - Test with different audio uniforms (e.g., `uKick`, `uAmplitude`) to see their visual impact.
+     - Use `leva` to adjust control uniforms and find optimal values.
+
+### Applying the Process to Your Shader
+
+Your minified shader and `ShaderTest` component are a great starting point. Let’s refine the component by:
+1. Expanding the minified shader into a documented GLSL fragment shader.
+2. Integrating your tweaks (e.g., `uSinNormalValue`, `uCosNormalValue`) with better scaling.
+3. Adding control uniforms for easy tweaking.
+4. Making it easy to swap audio uniforms (e.g., `uLow`, `uKick`) with clear documentation.
+
+#### Refined Fragment Shader
+We’ll expand the minified shader, incorporate your tweaks, and add control uniforms. We’ll also document potential audio uniform mappings.
+
+```glsl
+${generateShaderUniformCode()}
+
+// Control uniforms for tweaking visual effects
+uniform float timeScale;        // Scales time-based effects (animation speed)
+uniform float patternDensity;   // Scales pattern oscillation (fractal density)
+uniform float depthScale;       // Scales ray-marching depth (scene scale)
+uniform float stepSizeScale;    // Scales step size (pattern granularity)
+uniform float colorIntensity;   // Scales color saturation (brightness)
+
+// Varying input from vertex shader
+varying vec2 vUv;
+
+void main() {
+  // Normalize UV coordinates
+  vec2 fragCoord = vUv;
+  vec3 r = vec3(1.0, 1.0, 0.0); // Resolution for normalization
+  vec3 FC = vec3(fragCoord, 0.0);
+
+  // Initialize output color
+  vec4 color = vec4(0.0);
+
+  // Ray-marching variables
+  float i = 0.0; // Iteration counter
+  float z = 0.0; // Accumulated distance
+  float d = 0.0; // Step size
+
+  // Ray-marching loop (100 iterations)
+  for (; i < 100.0; i++) {
+    // Compute ray direction, modulated by uCosNormalValue
+    // Suggested audio uniforms: uCosNormalValue, uAmplitude, uKick
+    vec3 p = z * normalize(FC.rgb * (uCosNormalValue * 1.15 * patternDensity) - r.xyy);
+
+    // Apply time-based offset, modulated by uSinNormalValue
+    // Suggested audio uniforms: uSinNormalValue, uBeatIntensity, uLow
+    p.z -= 5.0 * uAdjustedAccumulatedTime * timeScale * (uSinNormalValue * 0.1);
+
+    // Rotate xy-plane, scaled by time
+    float t = uAdjustedAccumulatedTime * timeScale;
+    p.xy *= mat2(cos(z * 0.1 + t * 0.1 + vec4(0.0, 33.0, 11.0, 0.0)));
+
+    // Fractal summation loop for pattern generation
+    for (d = 1.0; d < 9.0; d /= 0.7) {
+      p += cos(p.yzx * d + uAdjustedAccumulatedTime * timeScale) / d;
+    }
+
+    // Compute step size, scaled by stepSizeScale
+    // Suggested audio uniforms for d modulation: uMid, uHigh
+    d = (0.02 + abs(2.0 - dot(cos(p), sin(p.yzx * 0.6))) / 8.0) * stepSizeScale;
+    z += d * depthScale;
+
+    // Accumulate color, inversely scaled by step size
+    color += vec4(z / 7.0, 2.0, 3.0, 1.0) / (d * 0.8);
+  }
+
+  // Apply final color transformation, scaled by colorIntensity
+  // Suggested audio uniforms for color modulation: uLow, uMid, uHigh
+  color = tanh(color * color / (1e7 * colorIntensity));
+
+  // Output final color
+  gl_FragColor = color;
+}
+```
+
+#### Refined R3F Component
+We’ll update the `ShaderTest` component to include the control uniforms, improve the `useAudioUniforms` hook for testing, and add `leva` controls for real-time tweaking.
+
+```typescript
+"use client"
+
+import { useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
+import { useAudioStateStore } from '../stores/useAudioStateStore'
+import { ShaderDefaultSettings, UniformDefaults } from '../types'
+import { IUniform } from 'three'
+import { generateShaderUniformCode } from '../utils'
+import { useControls } from 'leva'
+
+// Custom hook to update shader uniforms
+function useAudioUniforms(materialRef: React.RefObject<THREE.ShaderMaterial | null>) {
+  useFrame((state, deltaTime) => {
+    if (materialRef.current) {
+      // Fallback to elapsed time for testing without audio
+      const time = state.clock.elapsedTime;
+      const state = useAudioStateStore.getState();
+
+      // Update core uniforms
+      materialRef.current.uniforms.uAdjustedAccumulatedTime.value = state.uAdjustedAccumulatedTime || time;
+      materialRef.current.uniforms.uSinNormalValue.value = state.uSinNormalValue || Math.abs(Math.sin(time));
+      materialRef.current.uniforms.uCosNormalValue.value = state.uCosNormalValue || Math.abs(Math.cos(time));
+
+      // Example: Add other audio uniforms for experimentation
+      // materialRef.current.uniforms.uLow.value = state.uLow || 0.5;
+      // materialRef.current.uniforms.uKick.value = state.uKick || 0.0;
+
+      materialRef.current.needsUpdate = true;
+    } else {
+      console.log('materialRef.current is null');
+    }
+  });
+}
+
+// Vertex shader
+const vertexShader = `
+  varying vec2 vUv;
+  
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+// Fragment shader
+const fragmentShader = `
+  ${generateShaderUniformCode()}
+  
+  // Control uniforms for tweaking visual effects
+  uniform float timeScale;        // Scales time-based effects (animation speed)
+  uniform float patternDensity;   // Scales pattern oscillation (fractal density)
+  uniform float depthScale;       // Scales ray-marching depth (scene scale)
+  uniform float stepSizeScale;    // Scales step size (pattern granularity)
+  uniform float colorIntensity;   // Scales color saturation (brightness)
+  
+  varying vec2 vUv;
+  
+  void main() {
+    vec2 fragCoord = vUv;
+    vec3 r = vec3(1.0, 1.0, 0.0);
+    vec3 FC = vec3(fragCoord, 0.0);
+    vec4 color = vec4(0.0);
+    float i = 0.0;
+    float z = 0.0;
+    float d = 0.0;
+    
+    for (; i < 100.0; i++) {
+      vec3 p = z * normalize(FC.rgb * (uCosNormalValue * 1.15 * patternDensity) - r.xyy);
+      p.z -= 5.0 * uAdjustedAccumulatedTime * timeScale * (uSinNormalValue * 0.1);
+      float t = uAdjustedAccumulatedTime * timeScale;
+      p.xy *= mat2(cos(z * 0.1 + t * 0.1 + vec4(0.0, 33.0, 11.0, 0.0)));
+      for (d = 1.0; d < 9.0; d /= 0.7) {
+        p += cos(p.yzx * d + uAdjustedAccumulatedTime * timeScale) / d;
+      }
+      d = (0.02 + abs(2.0 - dot(cos(p), sin(p.yzx * 0.6))) / 8.0) * stepSizeScale;
+      z += d * depthScale;
+      color += vec4(z / 7.0, 2.0, 3.0, 1.0) / (d * 0.8);
+    }
+    
+    color = tanh(color * color / (1e7 * colorIntensity));
+    gl_FragColor = color;
+  }
+`
+
+export function ShaderTest() {
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
+
+  // Leva controls for real-time tweaking
+  const { timeScale, patternDensity, depthScale, stepSizeScale, colorIntensity } = useControls({
+    timeScale: { value: 1.0, min: 0.0, max: 2.0, step: 0.01 },
+    patternDensity: { value: 1.0, min: 0.0, max: 2.0, step: 0.01 },
+    depthScale: { value: 1.0, min: 0.0, max: 2.0, step: 0.01 },
+    stepSizeScale: { value: 1.0, min: 0.0, max: 2.0, step: 0.01 },
+    colorIntensity: { value: 1.0, min: 0.0, max: 2.0, step: 0.01 },
+  });
+
+  const uniforms = useRef<Record<string, IUniform<any>>>({
+    ...UniformDefaults,
+    timeScale: { value: timeScale },
+    patternDensity: { value: patternDensity },
+    depthScale: { value: depthScale },
+    stepSizeScale: { value: stepSizeScale },
+    colorIntensity: { value: colorIntensity },
+  });
+
+  // Update uniforms when leva controls change
+  useFrame(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.timeScale.value = timeScale;
+      materialRef.current.uniforms.patternDensity.value = patternDensity;
+      materialRef.current.uniforms.depthScale.value = depthScale;
+      materialRef.current.uniforms.stepSizeScale.value = stepSizeScale;
+      materialRef.current.uniforms.colorIntensity.value = colorIntensity;
+    }
+  });
+
+  useAudioUniforms(materialRef);
+
+  return (
+    <shaderMaterial
+      ref={materialRef}
+      vertexShader={vertexShader}
+      fragmentShader={fragmentShader}
+      uniforms={uniforms.current}
+      transparent={true}
+      attach="material"
+    />
+  );
+}
+```
+
+### Key Improvements
+1. **Expanded Shader**:
+   - The minified shader is expanded with clear variable names and comments.
+   - Your tweaks (e.g., `uSinNormalValue * 0.1`, `uCosNormalValue * 1.15`) are integrated with safer scaling factors to avoid extreme effects.
+2. **Control Uniforms**:
+   - Added `timeScale`, `patternDensity`, `depthScale`, `stepSizeScale`, and `colorIntensity`, all initialized to 1.0.
+   - These are linked to `leva` controls for real-time tweaking.
+3. **Audio Uniform Mapping**:
+   - Comments suggest alternative audio uniforms (e.g., `uLow`, `uKick`) for each critical calculation.
+   - The `useAudioUniforms` hook allows easy addition of other uniforms (e.g., `uLow`, `uKick`) for experimentation.
+4. **Documentation**:
+   - GLSL code includes comments explaining each uniform’s role and suggested audio mappings.
+   - The component is structured to make swapping uniforms straightforward (e.g., replace `uSinNormalValue` with `uKick` in the shader and update the hook).
+
+### How to Use This Process
+1. **Start with Minified GLSL**:
+   - Provide a compact shader like the one you shared.
+2. **Expand and Document**:
+   - Use the process to expand it into readable GLSL with comments.
+3. **Identify Critical Points**:
+   - Look for time, step size, and color calculations to assign audio uniforms.
+4. **Add Control Uniforms**:
+   - Introduce scaling uniforms for each critical effect.
+5. **Integrate with R3F**:
+   - Create a component with a hook to update uniforms and `leva` for tweaking.
+6. **Experiment**:
+   - Swap audio uniforms (e.g., `uSinNormalValue` to `uAmplitude`) in the shader and hook, then adjust control uniforms via `leva`.
+
+### Example: Swapping Uniforms
+To try `uKick` instead of `uSinNormalValue` for the z-offset:
+1. In `fragmentShader.glsl`, change:
+   ```glsl
+   p.z -= 5.0 * uAdjustedAccumulatedTime * timeScale * (uSinNormalValue * 0.1);
+   ```
+   to:
+   ```glsl
+   p.z -= 5.0 * uAdjustedAccumulatedTime * timeScale * (uKick * 0.1);
+   ```
+2. In `useAudioUniforms`, add:
+   ```typescript
+   materialRef.current.uniforms.uKick.value = state.uKick || 0.0;
+   ```
+3. Adjust `patternDensity` via `leva` to fine-tune the effect.
+
+This process ensures a developer can systematically build and tweak shaders while leveraging audio-driven uniforms for dynamic visuals. Let me know if you want to test this with another minified shader or add specific audio effects!

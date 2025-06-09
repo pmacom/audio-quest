@@ -1,0 +1,69 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+node_modules/
+.pnpm/
+
+Frontend/public/data/*
+Frontend/public/files/thumbnails/masks/*
+Frontend/public/files/thumbnails/segments/*
+Frontend/public/files/videos/masks/*
+Frontend/public/files/videos/segments/*
+Sorter/files/thumbnails/masks/*
+Sorter/files/thumbnails/segments/*
+Sorter/files/videos/masks/*
+Sorter/files/videos/segments/*
+Sorter/unsorted/masks/*
+Sorter/unsorted/segments/*
+Sorter/data/*
+
+!Frontend/public/data/.gitkeep
+!Frontend/public/files/thumbnails/masks/.gitkeep
+!Frontend/public/files/thumbnails/segments/.gitkeep
+!Frontend/public/files/videos/masks/.gitkeep
+!Frontend/public/files/videos/segments/.gitkeep
+!Sorter/files/thumbnails/masks/.gitkeep
+!Sorter/files/thumbnails/segments/.gitkeep
+!Sorter/files/videos/masks/.gitkeep
+!Sorter/files/videos/segments/.gitkeep
+!Sorter/unsorted/masks/.gitkeep
+!Sorter/unsorted/segments/.gitkeep
+!Sorter/data/.gitkeep
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts

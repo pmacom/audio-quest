@@ -1,0 +1,214 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+## Project Context
+This project converts user-provided GLSL shader code (e.g., from ShaderToy or ShaderFrog) into TypeScript-compatible shader settings for WebGL rendering. The AI must analyze the shader's mathematical and visual intent, map critical variables to tweakable uniforms (TWEAK_1 to TWEAK_10), and ensure performance stability in browsers. The provided TypeScript template MUST be followed closely to ensure consistency and stability.
+
+## Shader Code Preferences
+1. Prioritize **maximum readability and tweakability** in the converted shader code. Expand minified or abstracted code into clear, well-structured GLSL with descriptive variable names and logical organization.
+2. Do NOT preserve comments from the original shader code unless explicitly requested. Remove old logic comments to keep the output clean and focused on the new implementation.
+3. Ensure critical variables are exposed as tweakable uniforms (TWEAK_1 to TWEAK_10) to give developers maximum control over the shader's behavior.
+4. **Do NOT expose HSV function parameters or similar color model parameters as tweak uniforms.** Such tweaks (e.g., morphing hue, saturation, or value in real time) are unnecessary, add complexity, and do not align with the project's focus on critical rendering variables. Tweak uniforms should prioritize variables with significant visual or performance impact (e.g., amplitude, beat intensity).
+
+## GLSL Shader Processing Guidelines
+1. Analyze the user-provided GLSL shader to understand its mathematical intent and visual output.
+2. Expand minified or abstracted code into readable, well-commented GLSL. Use descriptive variable names and avoid obfuscation.
+3. Identify up to 10 critical variables that significantly impact pixel rendering (impact >= 4/9). Examples: amplitude, beat intensity, spectral flux.
+4. Flag violent variables that risk breaking the shader (e.g., division by zero, infinite loops, or performance spikes). Comment these prominently.
+5. Map critical variables to TWEAK_1 through TWEAK_10 uniforms. Use audio state variables from `Freq530FieldKeys` (e.g., `low`, `kick`, `time`) as the `source` in tweak ranges, ensuring alignment with the shader's audio-reactive intent.
+6. Scale each critical variable by its corresponding TWEAK_{NUMBER} value in the shader code.
+7. Ensure `uAdjustedAccumulatedTime` is properly utilized to maintain time progression, preventing stalls that could result in black or solid color outputs.
+8. Check for single scalar value outputs (e.g., `vec4(o, o, o, 1.0)`) that produce grayscale or boring renders. Accumulate a `vec3` color in the main loop with per-channel variation (e.g., different phase, frequency, or offsets for R, G, B). For grayscale shaders, inject color by modulating math per channel or mapping the scalar to a color palette (do NOT use HSV). Test with default tweak values to ensure color richness.
+9. Insert the processed GLSL code into the Default_FragmentShader template, ensuring compatibility with uniforms `uResolution`, `uAdjustedAccumulatedTime`, and varying `vUv`.
+
+## Tweak Uniform Rules
+1. Declare exactly 10 uniforms named TWEAK_1 to TWEAK_10 in the fragment shader.
+2. Assign each TWEAK uniform a purpose (e.g., "Scales amplitude influence") and an impact score (1-9).
+3. Comment each TWEAK uniform with:
+   - Its purpose.
+   - Its impact score (e.g., "impact: 8/9").
+   - Whether it is critical (impact >= 4/9) or violent (risks instability).
+4. Set tweak ranges in `Default_Tweak_Ranges`:
+   - Default value: 1.0 for safety, unless specific behavior requires otherwise.
+   - Min/max: Constrain to prevent instability (e.g., avoid zero for division, cap loops).
+   - Source: Use a value from `Freq530FieldKeys` (e.g., `amplitude`, `beatIntensity`). Comment the corresponding `Freq530FieldType` (e.g., `Zero1`, `Number`) to indicate the data shape.
+   - Ensure the `source` reflects an audio state variable relevant to the tweak's purpose. Do NOT use arbitrary or unrelated source names.
+5. For violent variables, tightly constrain ranges and add warnings (e.g., "VIOLENT: Values > 8 may degrade performance").
+
+## Performance and Safety
+1. Avoid excessive loops or computations, especially for violent variables.
+2. Test tweak ranges to ensure shader stability in browsers.
+3. Prevent values that approach infinity, null, or zero in ways that crash the shader.
+4. Ensure the shader does not exceed browser performance limits (e.g., cap loop iterations).
+
+## Troubleshooting Common Issues
+1. **Black or Solid Color Output**:
+   - A black or solid color output typically indicates:
+     - The main loop is not running.
+     - The accumulator (`uAdjustedAccumulatedTime`) is not progressing.
+     - NaNs are introduced in calculations.
+   - **Solution**:
+     - Start with a simple shader and verify each step (e.g., loop execution, time progression).
+     - Check tweak values for their effect on loop conditions and mathematical operations.
+     - Reintroduce complexity gradually to isolate the root cause.
+     - Ensure `uAdjustedAccumulatedTime` is correctly incrementing to drive animations.
+   - This methodical approach saves time and helps quickly identify issues.
+2. **Grayscale or Boring Solid Color Output**:
+   - If the final color output is a single scalar value (e.g., `vec4(o, o, o, 1.0)`), the shader may render as grayscale or a solid grey/black/white.
+   - **Solution**:
+     - Accumulate a `vec3` color with per-channel variation in the main loop (see GLSL Shader Processing Guidelines #8).
+     - For grayscale shaders, inject color via per-channel modulation or a color palette.
+     - Test early with default tweak values to ensure color richness, not just intensity.
+     - Pause and ask: “How can I make this colorful and interesting?” Design for color from the start.
+
+## Documentation Standards
+1. Use clear, concise comments in the fragment shader for each TWEAK uniform.
+2. Structure comments as:
+   ```
+   // CRITICAL: Controls <purpose> (impact: <score>/9)
+   // VIOLENT: <specific risk, if applicable>
+   uniform float TWEAK_<number>;
+   ```
+3. Document the `Default_Tweak_Ranges` array with comments explaining each range's purpose, `source`, and `Freq530FieldType`.
+4. Include a guidelines section in the TypeScript file explaining the shader conversion process.
+
+## Template Example
+The following TypeScript file is a **MANDATORY TEMPLATE** for all shader conversions. Developers MUST adhere to its structure, variable naming, and documentation style to ensure consistency and prevent errors. Only modify the placeholder sections for user-specific GLSL code and tweak configurations as indicated. The shader code MUST be expanded for readability and tweakability, with no remnants of minified code or old logic comments.
+
+```typescript
+import { ShaderSettings, TweakRanges } from "../types";
+
+// TEMPLATE: DO NOT MODIFY STRUCTURE
+// Default vertex shader for UV mapping and position transformation
+export const Default_VertexShader = \`
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+\`;
+
+// TEMPLATE: DO NOT MODIFY STRUCTURE EXCEPT FOR PLACEHOLDER
+// Default fragment shader with tweakable uniforms
+// Uses uAdjustedAccumulatedTime for time progression to prevent stalls
+export const Default_FragmentShader = \`
+uniform vec2 uResolution; // Screen resolution
+uniform float uAdjustedAccumulatedTime; // Time for animation, ensure it progresses
+// CRITICAL: Scales amplitude influence on color intensity (impact: 8/9)
+// VIOLENT: Values > 5 may cause oversaturation
+uniform float TWEAK_1;
+// CRITICAL: Adjusts beat intensity for pattern frequency (impact: 7/9)
+uniform float TWEAK_2;
+// CRITICAL: Modulates low frequency amplitude (impact: 6/9)
+uniform float TWEAK_3;
+// CRITICAL: Shifts phase based on adjusted time (impact: 5/9)
+uniform float TWEAK_4;
+// CRITICAL: Controls spectral flux influence on blur (impact: 4/9)
+// VIOLENT: Values > 8 may degrade performance
+uniform float TWEAK_5;
+// Secondary: Fine-tunes kick influence on edge sharpness (impact: 3/9)
+uniform float TWEAK_6;
+// Secondary: Adjusts mid frequency color mix (impact: 3/9)
+uniform float TWEAK_7;
+// Secondary: Scales texture based on snare intensity (impact: 2/9)
+uniform float TWEAK_8;
+// Secondary: Offsets UV based on high frequency (impact: 2/9)
+uniform float TWEAK_9;
+// Secondary: Adjusts brightness based on vocal likelihood (impact: 1/9)
+uniform float TWEAK_10;
+varying vec2 vUv;
+
+void main() {
+    // TEMPLATE: INSERT USER-PROVIDED GLSL SHADER CODE HERE
+    // Expand the code for maximum readability and tweakability
+    // Use descriptive variable names and clear structure
+    // Map critical variables to TWEAK_1 through TWEAK_10 and scale them
+    // Example: float amplitudeInfluence = originalAmplitude * TWEAK_1;
+    // Ensure compatibility with uResolution, uAdjustedAccumulatedTime, and vUv
+    // Do NOT include comments from the original shader code
+    // WARNING: Verify main loop, uAdjustedAccumulatedTime progression, and tweak values to avoid black/solid outputs
+    // WARNING: Avoid grayscale outputs (e.g., vec4(o, o, o, 1.0)). Accumulate vec3 color with per-channel variation
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); // Default output
+}
+\`;
+
+// TEMPLATE: DO NOT MODIFY STRUCTURE
+// Tweak ranges for shader uniforms
+// Each range corresponds to a TWEAK_{NUMBER} uniform
+// Source must be from Freq530FieldKeys with corresponding Freq530FieldType
+const Default_Tweak_Ranges: TweakRanges = [
+    // TWEAK_1: Scales amplitude influence
+    // VIOLENT: High values may oversaturate colors
+    // Source Type: Zero1
+    { min: 0.5, max: 5.0, value: 1.0, source: "amplitude" },
+    // TWEAK_2: Adjusts beat intensity
+    // Source Type: Number
+    { min: 0.1, max: 10.0, value: 1.0, source: "beatIntensity" },
+    // TWEAK_3: Modulates low frequency
+    // Source Type: Zero1
+    { min: 0.0, max: 3.0, value: 1.0, source: "low" },
+    // TWEAK_4: Shifts phase with adjusted time
+    // Source Type: Number
+    { min: -10.0, max: 10.0, value: 1.0, source: "adjustedTime" },
+    // TWEAK_5: Controls spectral flux influence
+    // VIOLENT: High values may degrade performance
+    // Source Type: Zero1
+    { min: 0.0, max: 8.0, value: 1.0, source: "spectralFlux" },
+    // TWEAK_6: Fine-tunes kick influence
+    // Source Type: Zero1
+    { min: 0.1, max: 5.0, value: 1.0, source: "kick" },
+    // TWEAK_7: Adjusts mid frequency mix
+    // Source Type: Zero1
+    { min: 0.0, max: 2.0, value: 1.0, source: "mid" },
+    // TWEAK_8: Scales texture with snare
+    // Source Type: Zero1
+    { min: 0.5, max: 5.0, value: 1.0, source: "snare" },
+    // TWEAK_9: Offsets UV with high frequency
+    // Source Type: Zero1
+    { min: -2.0, max: 2.0, value: 1.0, source: "high" },
+    // TWEAK_10: Adjusts brightness with vocal likelihood
+    // Source Type: Zero1
+    { min: 0.5, max: 1.5, value: 1.0, source: "vocalLikelihood" },
+];
+
+// TEMPLATE: DO NOT MODIFY STRUCTURE
+// Default shader settings for the converted shader
+export const TEST_SHADER: ShaderSettings = {
+    id: "unique-shader-id", // TEMPLATE: Replace with unique shader ID
+    isActive: false,
+    name: "Shader Name", // TEMPLATE: Replace with descriptive shader name
+    vertexShader: Default_VertexShader,
+    fragmentShader: Default_FragmentShader,
+    ranges: Default_Tweak_Ranges
+};
+
+/**
+ * TEMPLATE: DO NOT MODIFY STRUCTURE
+ * Guidelines for Converting User-Provided GLSL Shader Code
+ * 
+ * 1. Analyze Intent: Study the GLSL shader to understand its mathematical and visual intent.
+ * 2. Expand Code: Convert minified code into readable, well-structured GLSL with descriptive names.
+ * 3. Identify Critical Variables: Extract variables with significant rendering impact (impact >= 4/9).
+ * 4. Handle Violent Variables: Flag variables risking instability (e.g., division by zero) and constrain ranges.
+ * 5. Map to TWEAK Uniforms: Assign critical variables to TWEAK_1 through TWEAK_10, scaling by TWEAK values. Use Freq530FieldKeys as source.
+ * 6. Set Safe Ranges: Define min, max, and default (1.0) for each TWEAK uniform in Default_Tweak_Ranges with appropriate Freq530FieldType.
+ * 7. Comment Clearly: Document each TWEAK uniform's purpose, impact, risks (if violent), and source type.
+ * 8. Preserve Performance: Avoid excessive loops or computations; test ranges for browser stability.
+ * 9. Integrate Code: Insert processed GLSL code into Default_FragmentShader, ensuring compatibility.
+ * 10. Prevent Black Outputs: Verify main loop execution, uAdjustedAccumulatedTime progression, and tweak values to avoid NaNs or stalls.
+ * 11. Prevent Grayscale Outputs: Avoid single scalar outputs (e.g., vec4(o, o, o, 1.0)). Accumulate vec3 color with per-channel variation.
+ */
+```
+
+## Notes
+- The TypeScript template above is MANDATORY. Only modify the placeholder GLSL code in Default_FragmentShader and the `id` and `name` fields in TEST_SHADER.
+- Ensure the shader code is expanded for readability and tweakability, with no minified code or old logic comments.
+- Assume all TWEAK uniforms default to 1.0 to avoid critical or violent issues.
+- Prioritize clarity and safety over speculative optimization.
+- If unsure about a variable's impact, assign a lower impact score (1-3/9) and mark as non-critical.
+- Always validate the shader to prevent black or solid color outputs by checking loops, time progression, and tweak values.
+- Do NOT expose HSV or similar color model parameters as tweak uniforms, as they are not critical to the project's goals.
+- Design shaders for color richness from the start, avoiding grayscale outputs by accumulating `vec3` colors with per-channel variation.
+- Use `Freq530FieldKeys` for `source` in tweak ranges, annotating with `Freq530FieldType` to ensure correct data handling.

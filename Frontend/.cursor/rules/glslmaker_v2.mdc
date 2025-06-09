@@ -1,0 +1,345 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+PrimaryFreq530State and GLSL to Shader Settings Guide
+This document merges the PrimaryFreq530State documentation with a formulaic process to transform any minified GLSL shader into a structured output file, formatted like the provided example (Default_VertexShader, Default_FragmentShader, Default_Tweak_Ranges, ShaderSettings). The process critically evaluates GLSL code to identify 10 variables—prioritizing violent variables (risking errors like division by zero outside safe ranges, e.g., [0.1, 1]) and supplementing with critical variables (highly influential but safer)—and assigns each a TWEAK_{number} uniform (1 to 10) driven by a PrimaryFreq530State field. It includes explicit reasoning for handling unbounded fields (e.g., time, adjustedTime) to prevent performance issues, ensuring smooth rendering with safe ranges, violent thresholds, and impact ratings (1/9 to 9/9).
+PrimaryFreq530State Fields
+PrimaryFreq530State fields drive audio-reactive shader effects, categorized by type (Number, Neg1To1, Zero1, NumberArray, NumberArrayBars, Spectogram). Each field includes a description, range, and assignment rule for TWEAK_{number} uniforms, with precautions for violent variables and unbounded growth.
+Assignment Rules for TWEAK_{number}
+Objective: Assign 10 TWEAK_{number} uniforms to violent and critical GLSL variables, each driven by a PrimaryFreq530State field.
+Guidelines:
+
+Violent Variables: Prioritize variables risking errors (e.g., division by zero, infinite loops) if outside safe ranges (e.g., <0.1, >1); clamp tightly (e.g., max(abs(TWEAK_n), 0.01) for denominators). Examples include step sizes (d) or divisors (z) in color accumulation, which can cause NaNs/Infs if near zero, crashing the WebGL context.
+Critical Variables: Select influential variables (e.g., animation speed, color scaling) with safer ranges for remaining slots.
+Unbounded Fields (e.g., time, adjustedTime):
+Reasoning: Fields like time and adjustedTime grow indefinitely ([0, ∞)), risking violent thresholds (e.g., >3600 increases compute cost). Avoid direct assignment to TWEAK_{number} for violent variables or high-impact critical variables (impact ≥6/9). Instead, scale or modulate with bounded fields (e.g., u_time * u_amplitude, sin(u_time)), clamp to safe ranges (e.g., [0, 3600]), or use derived bounded fields (e.g., sinNormal).
+Strategies:
+Scaling: Multiply by a Zero1 field (e.g., u_time * u_low) to bound output.
+Periodic Transformation: Use sin(u_time) or cos(u_time) for cyclic effects.
+Clamping: Limit to a safe range (e.g., min(u_time, 3600)) in the application logic.
+Low-Impact Assignment: Assign to low-impact critical variables (impact ≤3/9) with small TWEAK_{number} values (e.g., 0.01).
+
+
+
+
+Denominator Safety:
+For variables used in denominators (e.g., d, z), apply strict clamping (e.g., max(abs(x), 0.01)) to prevent division by zero or near-zero, which can produce NaNs/Infs and crash the GPU pipeline.
+Monitor variables like step sizes (d) for non-advancement (e.g., becoming zero or negative), clamping to ensure progression (e.g., max(d, 0.01)).
+Example: In color accumulation like color += vec4(...) / (d * max(z * TWEAK_n, 0.01)), ensure d and z * TWEAK_n are clamped to avoid instability.
+
+
+Source Selection: Use Zero1 ([0, 1]) for violent variables, Neg1To1 for oscillations, and Number only for low-impact critical variables with clamping.
+Problematic Values: Clamp to prevent zero or extreme values; document violent thresholds (e.g., <0.01 causes division by zero, risking browser crashes). Reference WebGL Fundamentals: Gotchas for NaN/Inf risks and The Book of Shaders: Functions for safe shader design.
+Impact Rating: Rate variables from 9/9 (violent, high impact) to 1/9 (critical, low impact); prioritize high-impact variables.
+Performance: Avoid NumberArray/Spectogram for violent variables; prefer Zero1 for stability. Recommend debug output (e.g., color flags for NaN/Inf detection) during development to identify instability.
+Tweak Values: Set initial values (0.1–1.0); define min/max for violent behavior in Default_Tweak_Ranges, with tighter ranges (e.g., [0.01, 1.0]) for denominators.
+
+Number
+
+time: Cumulative time (seconds). Range: [0, ∞). Assign to low-impact critical animation (e.g., TWEAK_9); violent >3600 (compute overload), clamp [0, 3600], impact 2/9. Prefer sin(u_time) or scaling (e.g., u_time * u_low). Example: sin(u_time * max(TWEAK_9, 0.01)).
+adjustedTime: Amplitude-scaled time. Range: [0, ∞). Assign to low-impact critical animation (e.g., TWEAK_10); violent >10000, clamp [0, 10000], impact 1/9. Use scaling or periodic transform. Example: u_adjustedTime * u_amplitude * max(TWEAK_10, 0.01).
+rawAmplitude: Raw loudness. Range: [0, 1]. Assign to critical intensity (e.g., TWEAK_7); violent at 0 (dims), clamp [0.1, 1], impact 4/9. Example: u_rawAmplitude * max(TWEAK_7, 0.1).
+beatIntensity: Beat strength. Range: [0.1, 1]. Assign to critical pulses (e.g., TWEAK_8); safe, impact 3/9. Example: u_beatIntensity * TWEAK_8.
+bps: Beats per second. Range: [0, ~3]. Assign to critical tempo (e.g., TWEAK_9); violent at 0 (halts), clamp [0.1, 3], impact 2/9. Example: u_bps * max(TWEAK_9, 0.1).
+rawAmplitudeDynamic: Sensitive loudness. Range: [0, 1]. Assign to critical dynamic intensity (e.g., TWEAK_10); violent at 0, clamp [0.1, 1], impact 1/9. Example: u_rawAmplitudeDynamic * max(TWEAK_10, 0.1).
+lastBeatTime: Beat timestamp. Range: [0, now]. Assign to critical timing (e.g., TWEAK_10); violent if negative, clamp [0, now], impact 1/9. Example: (u_time - u_lastBeatTime) * max(TWEAK_10, 0.01).
+
+Neg1To1
+
+sin: Sine of time. Range: [-1, 1]. Assign to critical cyclic motion (e.g., TWEAK_8); safe, impact 3/9. Example: u_sin * TWEAK_8.
+cos: Cosine of time. Range: [-1, 1]. Assign to critical orthogonal motion (e.g., TWEAK_9); safe, impact 2/9. Example: u_cos * TWEAK_9.
+adjustedSin: Sine of adjustedTime. Range: [-1, 1]. Assign to critical audio-driven oscillation (e.g., TWEAK_10); safe, impact 1/9. Example: u_adjustedSin * TWEAK_10.
+
+Zero1
+
+sinNormal: Normalized sin. Range: [0, 1]. Assign to violent intensity (e.g., TWEAK_1); violent at 0 (dims), clamp [0.1, 1], impact 9/9. Example: u_sinNormal * max(TWEAK_1, 0.1).
+cosNormal: Normalized cos. Range: [0, 1]. Assign to violent scaling (e.g., TWEAK_2); violent at 0 (shrinks), clamp [0.1, 1], impact 8/9. Example: u_cosNormal * max(TWEAK_2, 0.1).
+adjustedSinNormal: Normalized adjustedSin. Range: [0, 1]. Assign to violent audio-driven intensity (e.g., TWEAK_3); violent at 0, clamp [0.1, 1], impact 7/9. Example: u_adjustedSinNormal * max(TWEAK_3, 0.1).
+adjustedCosNormal: Normalized adjustedCos. Range: [0, 1]. Assign to violent audio-driven scaling (e.g., TWEAK_4); violent at 0, clamp [0.1, 1], impact 6/9. Example: u_adjustedCosNormal * max(TWEAK_4, 0.1).
+low: Bass energy (20–250 Hz). Range: [0, 1]. Assign to violent bass effects (e.g., TWEAK_5); violent at 0 (no bass), clamp [0.1, 1], impact 5/9. Example: u_low * max(TWEAK_5, 0.1).
+mid: Mid-frequency energy (250–4000 Hz). Range: [0, 1]. Assign to violent melodic effects (e.g., TWEAK_6); violent at 0 (mutes), clamp [0.1, 1], impact 4/9. Example: u_mid * max(TWEAK_6, 0.1).
+high: High-frequency energy (4000–20000 Hz). Range: [0, 1]. Assign to violent treble effects (e.g., TWEAK_7); violent at 0 (mutes), clamp [0.1, 1], impact 3/9. Example: u_high * max(TWEAK_7, 0.1).
+kick: Kick drum energy (40–100 Hz). Range: [0, 1]. Assign to violent pulses (e.g., TWEAK_8); violent at 0 (skips), clamp [0.1, 1], impact 2/9. Example: u_kick * max(TWEAK_8, 0.1).
+snare: Snare drum energy (120–500 Hz). Range: [0, 1]. Assign to violent bursts (e.g., TWEAK_9); violent at 0 (skips), clamp [0.1, 1], impact 1/9. Example: u_snare * max(TWEAK_9, 0.1).
+hihat: Hi-hat energy (2000–10000 Hz). Range: [0, 1]. Assign to violent twinkles (e.g., TWEAK_10); violent at 0 (skips), clamp [0.1, 1], impact 1/9. Example: u_hihat * max(TWEAK_10, 0.1).
+vocalLikelihood: Vocal presence (currently 0). Range: [0, 0]. Avoid; non-functional.
+amplitude: Loudness. Range: [0, 2]. Assign to critical intensity (e.g., TWEAK_1); violent at 0 (dims), clamp [0.1, 2], impact 5/9. Example: u_amplitude * max(TWEAK_1, 0.1).
+lowDynamic: Sensitive bass. Range: [0, 1]. Assign to violent responsive bass (e.g., TWEAK_2); violent at 0, clamp [0.1, 1], impact 4/9. Example: u_lowDynamic * max(TWEAK_2, 0.1).
+midDynamic: Sensitive mid. Range: [0, 1]. Assign to violent melodic flow (e.g., TWEAK_3); violent at 0, clamp [0.1, 1], impact 3/9. Example: u_midDynamic * max(TWEAK_3, 0.1).
+highDynamic: Sensitive high. Range: [0, 1]. Assign to violent treble flashes (e.g., TWEAK_4); violent at 0, clamp [0.1, 1], impact 2/9. Example: u_highDynamic * max(TWEAK_4, 0.1).
+kickDynamic: Sensitive kick. Range: [0, 1]. Assign to violent pulses (e.g., TWEAK_5); violent at 0, clamp [0.1, 1], impact 1/9. Example: u_kickDynamic * max(TWEAK_5, 0.1).
+snareDynamic: Sensitive snare. Range: [0, 1]. Assign to violent spikes (e.g., TWEAK_6); violent at 0, clamp [0.1, 1], impact 1/9. Example: u_snareDynamic * max(TWEAK_6, 0.1).
+hihatDynamic: Sensitive hi-hat. Range: [0, 1]. Assign to violent twinkles (e.g., TWEAK_7); violent at 0, clamp [0.1, 1], impact 1/9. Example: u_hihatDynamic * max(TWEAK_7, 0.1).
+amplitudeDynamic: Sensitive loudness. Range: [0, 1]. Assign to violent scaling (e.g., TWEAK_8); violent at 0, clamp [0.1, 1], impact 1/9. Example: u_amplitudeDynamic * max(TWEAK_8, 0.1).
+spectralFlux: Spectral change. Range: [0, ~10]. Assign to critical transitions (e.g., TWEAK_9); violent >5 (overloads), clamp [0, 5], impact 1/9. Example: clamp(u_spectralFlux * max(TWEAK_9, 0.1), 0.0, 5.0).
+
+NumberArray
+
+beatTimes: Beat timestamps. Range: Array of [0, now] (0–20 entries). Assign to critical timing (e.g., TWEAK_10); high compute, avoid for violent variables, impact 1/9. Example: u_beatTimes[0] > u_time - max(TWEAK_10, 0.01) ? 1.0 : 0.0.
+
+NumberArrayBars
+
+quantizedBands: 32 spectral bands. Range: Array of [0, 255] (32 entries). Assign to critical spectrum visuals (e.g., TWEAK_1); high compute, avoid for violent variables, impact 1/9. Example: float(u_quantizedBands[i]) / 255.0 * max(TWEAK_1, 0.1).
+
+Spectogram
+
+spectogram: 64x64 PNG spectrogram. Range: Option<Vec> (~12–16 KB). Assign to critical frequency maps (e.g., TWEAK_2); very high compute, avoid for violent variables, impact 1/9. Example: texture2D(u_spectogram, uv * max(TWEAK_2, 0.1)).
+
+GLSL to Shader Settings Conversion Process
+This process transforms any minified GLSL shader into a structured output file, mirroring the example structure (Default_VertexShader, Default_FragmentShader, Default_Tweak_Ranges, ShaderSettings). It evaluates the GLSL code to assign 10 TWEAK_{number} uniforms to violent and critical variables, each driven by a PrimaryFreq530State field, with special handling for unbounded fields to ensure smooth performance.
+Step-by-Step Process
+1. Parse and Expand Minified GLSL
+Objective: Convert minified shader to readable GLSL.Steps:
+
+Identify uniforms, varyings, loops, and gl_FragColor.
+Replace shorthand variables (e.g., t → time, o → color).
+Add comments for key sections (e.g., ray-marching, color accumulation).
+
+Example Input (Minified):
+for(float i,z,d;i++<1e2;o+=vec4(z/7.,2,3,1)/d){vec3 p=z*normalize(FC.rgb*2.-r.xyy);p.z-=5.*t;p.xy*=mat2(cos(z*.1+t*.1+vec4(0,33,11,0)));for(d=1.;d<9.;d/=.7)p+=cos(p.yzx*d+t)/d;z+=d=.02+abs(2.-dot(cos(p),sin(p.yzx*.6)))/8.;}o=tanh(o*o/1e7);
+
+Expanded Output:
+varying vec2 vUv;
+void main() {
+  vec2 fragCoord = vUv;
+  vec3 r = vec3(1.0, 1.0, 0.0);
+  vec3 FC = vec3(fragCoord, 0.0);
+  vec4 color = vec4(0.0);
+  float i = 0.0, z = 0.0, d = 0.0;
+  float time = 0.0; // Placeholder for time
+  for (; i < 100.0; i++) {
+    vec3 p = z * normalize(FC.rgb * 2.0 - r.xyy);
+    p.z -= 5.0 * time;
+    p.xy *= mat2(cos(z * 0.1 + time * 0.1 + vec4(0.0, 33.0, 11.0, 0.0)));
+    for (d = 1.0; d < 9.0; d /= 0.7) p += cos(p.yzx * d + time) / d;
+    d = 0.02 + abs(2.0 - dot(cos(p), sin(p.yzx * 0.6))) / 8.0;
+    z += d;
+    color += vec4(z / 7.0, 2.0, 3.0, 1.0) / d;
+  }
+  color = tanh(color * color / 1e7);
+  gl_FragColor = color;
+}
+
+2. Identify Violent and Critical Variables
+Objective: Select 10 variables, prioritizing violent ones (risking errors) and filling with critical ones (influential).Steps:
+
+Violent Variables (impact 6/9–9/9):
+Step size (d): Risks infinite loops if near zero. Clamp tightly (e.g., max(abs(d), 0.01)).
+Color divisor (e.g., 7.0): Division by zero if near zero. Clamp (e.g., max(abs(x), 0.1)).
+Color transform (e.g., 1e7): Saturation if too large. Clamp to safe range (e.g., [1e6, 1e8]).
+Pattern density (e.g., 0.6): Overload if too high. Clamp to safe range (e.g., [0.1, 2]).
+
+
+Critical Variables (impact 1/9–5/9):
+Depth (z): Scales scene. Monitor for non-advancement; clamp if used in denominators (e.g., max(abs(z), 0.01)).
+Pattern frequency (e.g., 0.1 in z * 0.1): Affects fractal.
+Rotation speed (e.g., 0.1 in time * 0.1): Controls motion.
+Ray scaling (e.g., 2.0): Adjusts perspective.
+Depth offset (e.g., 5.0): Shifts scene.
+Time (time): Drives animation (use cautiously due to unbounded growth).
+
+
+Sensitivity Check:
+d < 0.01: Infinite loops, violent below 0.01, safe [0.01, 1], impact 9/9.
+7.0 < 0.1: Division by zero, violent below 0.1, safe [0.1, 10], impact 8/9.
+1e7 > 1e8: Saturation, violent above 1e8, safe [1e6, 1e8], impact 7/9.
+0.6 > 2: Compute overload, violent above 2, safe [0.1, 2], impact 6/9.
+z > 10: Scene distortion, safe [0, 10], impact 5/9 (clamp if in denominator, e.g., max(abs(z), 0.01)).
+0.1 (pattern): Pattern overload >1, safe [0.01, 1], impact 4/9.
+0.1 (rotation): Fast rotation >1, safe [0.01, 1], impact 3/9.
+2.0: Extreme perspective >5, safe [0.1, 5], impact 2/9.
+5.0: Large offset >10, safe [0.1, 10], impact 1/9.
+time > 3600: Compute increase, safe [0, 3600], impact 1/9 (low impact due to scaling).
+
+
+Selected Variables:
+d (violent, step size, 9/9).
+7.0 (violent, color divisor, 8/9).
+1e7 (violent, color transform, 7/9).
+0.6 (violent, pattern density, 6/9).
+z (critical, depth, 5/9).
+0.1 (critical, pattern frequency, 4/9).
+0.1 (critical, rotation speed, 3/9).
+2.0 (critical, ray scaling, 2/9).
+5.0 (critical, depth offset, 1/9).
+time (critical, animation, 1/9, scaled with amplitude).
+
+
+
+3. Assign TWEAK_{number} and Sources
+Objective: Map each variable to a TWEAK_{number} uniform and a PrimaryFreq530State field.Steps:
+
+Use Zero1 for violent variables to ensure [0.1, 1] stability.
+Use Zero1 or Number for critical variables, scaling unbounded fields (e.g., time with amplitude).
+Clamp violent variables (e.g., max(abs(TWEAK_n), 0.01) for denominators) and monitor critical variables like z for non-advancement.
+Set safe initial values and ranges in Default_Tweak_Ranges.
+Document violent thresholds with references to WebGL Fundamentals and The Book of Shaders.
+
+Assignments:
+
+d * TWEAK_1 → low (Zero1, [0.1, 1], violent <0.01, TWEAK_1 = 0.5, [0.01, 1.0], 9/9). Example: max(abs(d * TWEAK_1), 0.01).
+7.0 * TWEAK_2 → mid (Zero1, [0.1, 1], violent <0.1, TWEAK_2 = 1.0, [0.1, 10.0], 8/9). Example: max(abs(7.0 * TWEAK_2), 0.1).
+1e7 * TWEAK_3 → high (Zero1, [0.1, 1], violent >1e8, TWEAK_3 = 0.2, [0.1, 1.0], 7/9).
+0.6 * TWEAK_4 → kick (Zero1, [0.1, 1], violent >2, TWEAK_4 = 0.5, [0.1, 2.0], 6/9).
+z * TWEAK_5 → amplitude (Zero1, [0.1, 2], safe, TWEAK_5 = 0.3, [0.1, 2.0], 5/9). Example: max(abs(z * TWEAK_5), 0.01) if in denominator.
+0.1 * TWEAK_ WEAK_6 → sinNormal (Zero1, [0.1, 1], safe, TWEAK_6 = 1.0, [0.01, 1.0], 4/9).
+0.1 * TWEAK_7 → cosNormal (Zero1, [0.1, 1], safe, TWEAK_7 = 0.5, [0.01, 1.0], 3/9).
+2.0 * TWEAK_8 → beatIntensity (Number, [0.1, 1], safe, TWEAK_8 = 0.5, [0.1, 5.0], 2/9).
+5.0 * TWEAK_9 → spectralFlux (Zero1, [0, 5], safe, TWEAK_9 = 0.1, [0.1, 5.0], 1/9).
+time * TWEAK_10 → amplitude (Zero1, [0.1, 2], safe, TWEAK_10 = 0.01, [0.01, 0.1], 1/9, scales uAdjustedAccumulatedTime).
+
+4. Generate Formatted Output File
+Objective: Produce a file with Default_VertexShader, Default_FragmentShader, Default_Tweak_Ranges, and ShaderSettings, adapting to the input GLSL.Steps:
+
+Use standard Default_VertexShader for UV mapping.
+Create Default_FragmentShader with uResolution, uAdjustedAccumulatedTime, and TWEAK_1 to TWEAK_10, applying uniforms with clamping (e.g., max(abs(TWEAK_n), 0.01) for denominators).
+Define Default_Tweak_Ranges with min, max, value, and source for each TWEAK_{number}.
+Configure ShaderSettings with a unique ID, name, and the generated shaders/ranges.
+Comment each uniform’s source, range, violent thresholds, and impact, referencing external resources for safety guidelines.
+Handle time by scaling with u_amplitude to bound its effect.
+
+Output File:
+import { ShaderSettings, TweakRanges } from "../types";
+
+// Standard vertex shader for UV mapping and position transformation
+export const Default_VertexShader = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+// Fragment shader with tweakable uniforms
+export const Default_FragmentShader = `
+uniform vec2 uResolution; // Screen resolution
+uniform float uAdjustedAccumulatedTime; // Time for animation
+// CRITICAL: Controls step size (impact: 9/9)
+// VIOLENT: Values <0.01 may cause infinite loops, see WebGL Fundamentals (https://webglfundamentals.org/webgl/lessons/webgl-gotchas.html)
+uniform float TWEAK_1;
+// CRITICAL: Controls color divisor (impact: 8/9)
+// VIOLENT: Values <0.1 may cause division by zero, see Book of Shaders (https://thebookofshaders.com/06/)
+uniform float TWEAK_2;
+// CRITICAL: Controls color transform (impact: 7/9)
+// VIOLENT: Values >1e8 may cause saturation
+uniform float TWEAK_3;
+// CRITICAL: Controls pattern density (impact: 6/9)
+// VIOLENT: Values >2 may degrade performance
+uniform float TWEAK_4;
+// CRITICAL: Controls depth scaling (impact: 5/9)
+// NOTE: Clamp to 0.01 if used in denominators to avoid NaNs/Infs
+uniform float TWEAK_5;
+// Secondary: Controls pattern frequency (impact: 4/9)
+uniform float TWEAK_6;
+// Secondary: Controls rotation speed (impact: 3/9)
+uniform float TWEAK_7;
+// Secondary: Controls ray scaling (impact: 2/9)
+uniform float TWEAK_8;
+// Secondary: Controls depth offset (impact: 1/9)
+uniform float TWEAK_9;
+// Secondary: Controls animation scaling (impact: 1/9)
+// NOTE: Scales uAdjustedAccumulatedTime with amplitude to bound effect
+uniform float TWEAK_10;
+varying vec2 vUv;
+
+void main() {
+  vec2 r = uResolution;
+  vec3 FC = vec3(vUv * r, 0.0);
+  float t = uAdjustedAccumulatedTime * max(TWEAK_10, 0.01);
+  vec4 color = vec4(0.0);
+  float i = 0.0, z = 0.0, d = 0.0;
+  for (; i < 100.0; i++) {
+    vec3 p = z * max(TWEAK_5, 0.1) * normalize(FC.rgb * (2.0 * max(TWEAK_8, 0.1)) - r.xyy);
+    p.z -= 5.0 * max(TWEAK_9, 0.1) * t;
+    p.xy *= mat2(cos(z * (0.1 * max(TWEAK_6, 0.01)) + t * (0.1 * max(TWEAK_7, 0.01)) + vec4(0.0, 33.0, 11.0, 0.0)));
+    for (d = 1.0; d < 9.0; d /= 0.7) p += cos(p.yzx * d + t) / d;
+    d = (0.02 + abs(2.0 - dot(cos(p), sin(p.yzx * (0.6 * max(TWEAK_4, 0.1))))) / 8.0) * max(abs(TWEAK_1), 0.01);
+    z += d;
+    color += vec4(z / max(abs(7.0 * TWEAK_2), 0.1), 2.0, 3.0, 1.0) / max(abs(d), 0.01);
+  }
+  color = tanh(color * color / (1e7 * max(TWEAK_3, 0.1)));
+  gl_FragColor = color;
+}
+`;
+
+// Tweak ranges for shader uniforms
+const Default_Tweak_Ranges: TweakRanges = [
+  // TWEAK_1: Step size, source: low
+  // VIOLENT: Values <0.01 may cause infinite loops
+  { min: 0.01, max: 1.0, value: 0.5, source: "low" },
+  // TWEAK_2: Color divisor, source: mid
+  // VIOLENT: Values <0.1 may cause division by zero
+  { min: 0.1, max: 10.0, value: 1.0, source: "mid" },
+  // TWEAK_3: Color transform, source: high
+  // VIOLENT: Values >1e8 may cause saturation
+  { min: 0.1, max: 1.0, value: 0.2, source: "high" },
+  // TWEAK_4: Pattern density, source: kick
+  // VIOLENT: Values >2 may degrade performance
+  { min: 0.1, max: 2.0, value: 0.5, source: "kick" },
+  // TWEAK_5: Depth scaling, source: amplitude
+  { min: 0.1, max: 2.0, value: 0.3, source: "amplitude" },
+  // TWEAK_6: Pattern frequency, source: sinNormal
+  { min: 0.01, max: 1.0, value: 1.0, source: "sinNormal" },
+  // TWEAK_7: Rotation speed, source: cosNormal
+  { min: 0.01, max: 1.0, value: 0.5, source: "cosNormal" },
+  // TWEAK_8: Ray scaling, source: beatIntensity
+  { min: 0.1, max: 5.0, value: 0.5, source: "beatIntensity" },
+  // TWEAK_9: Depth offset, source: spectralFlux
+  { min: 0.1, max: 5.0, value: 0.1, source: "spectralFlux" },
+  // TWEAK_10: Animation scaling, source: amplitude
+  // NOTE: Scales uAdjustedAccumulatedTime to bound effect
+  { min: 0.01, max: 0.1, value: 0.01, source: "amplitude" },
+];
+
+// Shader settings for the converted shader
+export const FRACTAL_RAYMARCH_SHADER: ShaderSettings = {
+  id: "fractal-raymarch-shader",
+  isActive: false,
+  name: "Fractal Raymarch Shader",
+  vertexShader: Default_VertexShader,
+  fragmentShader: Default_FragmentShader,
+  ranges: Default_Tweak_Ranges
+};
+
+5. Validate and Test
+Objective: Ensure the output is functional and performant.Steps:
+
+Verify Default_FragmentShader uses only uResolution, uAdjustedAccumulatedTime, and TWEAK_1 to TWEAK_10.
+Check Default_Tweak_Ranges for correct min/max/values and sources from PrimaryFreq530State.
+Ensure unbounded fields (e.g., adjustedTime) are scaled or clamped (e.g., TWEAK_10 uses amplitude).
+Test with varied audio inputs to confirm stability.
+Adjust TWEAK_{number} ranges to avoid violent thresholds (e.g., TWEAK_1 < 0.01 risks loops).
+During development, add debug output (e.g., set gl_FragColor to red if isnan(d) or isinf(d)) to detect NaNs/Infs.
+
+Guidelines for Converting User-Provided GLSL Shader Code
+
+Analyze Intent: Study the GLSL shader to understand its mathematical and visual intent (e.g., ray-marching, fractal patterns).
+Identify Violent Variables: Flag variables risking instability (e.g., division by zero, infinite loops) with high impact (6/9–9/9); prioritize for TWEAK_{number} assignments. Clamp denominators tightly (e.g., max(abs(x), 0.01)).
+Identify Critical Variables: Extract influential variables (e.g., scaling, offsets) with safer ranges and lower impact (1/9–5/9) to fill remaining slots. Monitor for non-advancement if used in loops or denominators.
+Handle Unbounded Fields:
+Fields: time, adjustedTime, lastBeatTime grow indefinitely ([0, ∞)), risking violent thresholds (e.g., >3600 for compute cost).
+Reasoning: Direct assignment to high-impact (≥6/9) or violent variables can cause performance issues as values climb (e.g., uAdjustedAccumulatedTime > 3600). Use these fields only for low-impact critical variables (impact ≤3/9) with scaling or periodic transforms.
+Strategies:
+Scaling: Multiply by a Zero1 field (e.g., u_time * u_amplitude) to bound output (e.g., [0, 2] with u_amplitude).
+Periodic Transformation: Use sin(u_time) or cos(u_time) for cyclic effects (e.g., via sinNormal, cosNormal).
+Clamping: Limit to a safe range (e.g., min(u_time, 3600)) in application logic or shader (e.g., min(uAdjustedAccumulatedTime, 3600)).
+Low-Impact Use: Assign to TWEAK_{number} with small values (e.g., 0.01) for subtle effects (e.g., TWEAK_10 for animation scaling).
+
+
+Example: Avoid uAdjustedAccumulatedTime for TWEAK_1 (violent, high-impact). Instead, use u_amplitude or sinNormal, or scale uAdjustedAccumulatedTime with u_amplitude for TWEAK_10 (low-impact).
+
+
+Assign TWEAK Uniforms: Map 10 variables to TWEAK_1 through TWEAK_10, using Zero1 fields for violent variables (e.g., low, mid) and Zero1 or scaled Number for critical ones (e.g., u_time * u_amplitude).
+Set Safe Ranges: Define min, max, and default values in Default_Tweak_Ranges, clamping violent variables (e.g., min: 0.01 to avoid zero) and unbounded fields (e.g., max: 0.1 for u_time scaling).
+Comment Clearly: Document each TWEAK_{number} uniform’s purpose, source, impact (1/9–9/9), and violent risks (e.g., “VIOLENT: Values <0.01 may cause infinite loops”). Reference WebGL Fundamentals and The Book of Shaders for safety guidelines.
+Preserve Performance: Avoid excessive loops or NumberArray/Spectogram fields for violent variables; test ranges for browser stability. Use debug output during development to detect NaNs/Infs.
+Generate Output: Produce a file with Default_VertexShader, Default_FragmentShader (including uResolution, u AdjustedAccumulatedTime, and TWEAK_1 to TWEAK_10), Default_Tweak_Ranges, and ShaderSettings, ensuring R3F compatibility.
+
+Additional Notes
+Developer Instructions: Analyze GLSL for violent variables (e.g., divisors, step sizes) risking errors at zero or high values, and critical variables (e.g., scaling, offsets) shaping visuals. Assign TWEAK_{number} to 10 variables (violent first, impact 6/9–9/9, then critical, 1/9–5/9), using Zero1 fields for violent cases with tight clamping (e.g., max(abs(TWEAK_n), 0.01) for denominators). For unbounded fields (time, adjustedTime), scale with Zero1 fields (e.g., u_amplitude), use periodic transforms (e.g., sinNormal), or clamp (e.g., [0, 3600]), assigning only to low-impact variables (impact ≤3/9). Produce a file matching the example structure, documenting violent thresholds (e.g., d < 0.01 risks loops) and impact ratings. Recommend debug output (e.g., color flags for NaN/Inf detection) during development.
+Performance: Prioritize Zero1 fields for violent variables. Avoid NumberArray/Spectogram for violent variables due to compute cost.
+Violent Value Precautions: Clamp uniforms to safe ranges (e.g., [0.01, 1] for Zero1 denominators, [0.01, 0.1] for scaled time). Highlight thresholds where errors occur (e.g., 7.0 < 0.1 causes division by zero). See WebGL Fundamentals for NaN/Inf risks.
+Tweak Tuning: Set conservative initial values (0.1–1.0) in Default_Tweak_Ranges, especially for unbounded fields (e.g., TWEAK_10 = 0.01), allowing R3F controls to adjust safely.
+This process ensures any GLSL shader is transformed into a structured output file, compatible with R3F, using 10 TWEAK_{number} uniforms driven by PrimaryFreq530State fields, with robust handling of unbounded fields and denominators to prevent performance issues.
