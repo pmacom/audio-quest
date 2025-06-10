@@ -113,7 +113,8 @@ export const useFreq530 = create<Freq530Store>((set, get) => {
         }
 
         const ProtoType = root.lookupType('PrimaryFreq530State')
-        const ws = new WebSocket('ws://127.0.0.1:8765')
+        const wsUrl = process.env.NEXT_PUBLIC_FREQ530_WS_URL || 'ws://127.0.0.1:8765'
+        const ws = new WebSocket(wsUrl)
         ws.binaryType = 'arraybuffer'
 
         ws.onopen = () => set({ connectionState: 'connected' })
