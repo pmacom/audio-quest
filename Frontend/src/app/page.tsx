@@ -13,7 +13,7 @@ export default function Home() {
       {/* <TestRefTextureCanvas></TestRefTextureCanvas> */}
 
 
-      <BasicTestCanvas debug={true} >
+      <BasicTestCanvas debug={false} >
         <PRIMARY_SCENE_CONTENT />
       </BasicTestCanvas>
     </div>
