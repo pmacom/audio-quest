@@ -30,13 +30,6 @@ echo "Installing pnpm..."
 sudo npm install -g pnpm
 pnpm --version
 
-# Install create-next-app globally with sudo
-echo "Installing create-next-app..."
-sudo pnpm install -g create-next-app
-
-# Verify create-next-app
-create-next-app --version
-
 # Install additional dependencies for Next.js (e.g., for native modules or image processing)
 echo "Installing additional dependencies..."
 sudo apt install -y libpng-dev libjpeg-dev
