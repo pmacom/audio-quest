@@ -47,7 +47,7 @@ sudo tee -a /boot/firmware/config.txt > /dev/null << 'EOF'
 
 # Waveshare 3.5" Display Configuration
 dtparam=spi=on
-dtoverlay=waveshare35a
+dtoverlay=waveshare35a,rotate=270
 hdmi_force_hotplug=1
 max_usb_current=1
 hdmi_group=2
@@ -55,7 +55,7 @@ hdmi_mode=1
 hdmi_mode=87
 hdmi_cvt 480 320 60 6 0 0 0
 hdmi_drive=2
-display_rotate=0
+display_rotate=2
 EOF
 
 # Configure auto-start with .bash_profile
@@ -94,12 +94,22 @@ sudo apt-get install xserver-xorg-input-evdev -y
 sudo cp -rf /usr/share/X11/xorg.conf.d/10-evdev.conf /usr/share/X11/xorg.conf.d/45-evdev.conf
 sudo apt-get install xinput-calibrator -y
 
-# Create touch calibration config
+# Create display rotation config for X11
+sudo tee /usr/share/X11/xorg.conf.d/98-screen-rotation.conf > /dev/null << 'EOF'
+Section "Device"
+    Identifier "Raspberry Pi FBDEV"
+    Driver "fbdev"
+    Option "fbdev" "/dev/fb0"
+    Option "Rotate" "UD"
+EndSection
+EOF
+
+# Create touch calibration config (180-degree rotation)
 sudo tee /usr/share/X11/xorg.conf.d/99-calibration.conf > /dev/null << 'EOF'
 Section "InputClass"
         Identifier      "calibration"
         MatchProduct    "ADS7846 Touchscreen"
-        Option  "Calibration"   "3932 300 294 3801"
+        Option  "Calibration"   "300 3932 3801 294"
         Option  "SwapAxes"      "1"
         Option "EmulateThirdButton" "1"
         Option "EmulateThirdButtonTimeout" "1000"
