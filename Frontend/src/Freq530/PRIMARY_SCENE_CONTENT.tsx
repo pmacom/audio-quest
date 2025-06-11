@@ -38,7 +38,7 @@ export const PRIMARY_SCENE_CONTENT = () => {
       {/* <ShaderTest /> */}
 
       {/* Complete Demo Layout */}
-      {/* <DemoAudioVisualizersLayout position={[10, 0, 0]} /> */}
+      <DemoAudioVisualizersLayout position={[10, 0, 0]} />
 
       {/* <group scale={20} position={[0, 0, 0]}>
         <BirdModel />
@@ -47,7 +47,7 @@ export const PRIMARY_SCENE_CONTENT = () => {
       
       <VideoShaderTest />
 
-      {/* {!loading && videos.length > 0 && masks.length > 0 && (
+      {!loading && videos.length > 0 && masks.length > 0 && (
         <group scale={[scale, scale, scale]} rotation={[0, 0, 0]}>
           <TripSequenceShuffler
             videos={videos}
@@ -56,9 +56,9 @@ export const PRIMARY_SCENE_CONTENT = () => {
             videoTransitionDuration={4}
           />
         </group>
-      )} */}
+      )}
 
-{/* 
+
       {true && !loading && videos.length > 0 && masks.length > 0 && (
         <>
           <group scale={[scale, scale, scale]} rotation={[0, Math.PI / 2, 0]}>
@@ -88,7 +88,7 @@ export const PRIMARY_SCENE_CONTENT = () => {
             />
           </group>
         </>
-      )} */}
+      )}
       
     </>
   )
