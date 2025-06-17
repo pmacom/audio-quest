@@ -29,9 +29,11 @@ export const CachedMesh = ({
 
   if (!material) return null;
 
+  const scale = 50
+
   return (
-    <mesh {...props}>
-      {geometry ? <primitive object={geometry} attach="geometry" /> : <boxGeometry args={[1, 1, 1]} />}
+    <mesh {...props} scale={[scale, scale, scale]}>
+      {geometry ? <primitive object={geometry} attach="geometry" /> : <sphereGeometry args={[1, 32, 32]} />}
       <primitive object={material} attach="material" />
     </mesh>
   );

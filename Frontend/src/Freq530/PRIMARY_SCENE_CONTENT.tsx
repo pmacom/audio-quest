@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { useFrame } from "@react-three/fiber"
 import { CachedMesh, CachedMesh2, CachedMesh3, CachedMesh4 } from "./components/CachedMesh"
 import { ShaderManager } from "./shaders/ShaderManager"
 import { DemoAudioVisualizersLayout, AmplitudeVisualizer, BeatIntensityPulsar, FrequencyBandsDisplay, DeformablePlane } from "./components"
@@ -15,6 +16,7 @@ export const PRIMARY_SCENE_CONTENT = () => {
   const [videos, setVideos] = useState<VideoSourceEntry[]>([])
   const [masks, setMasks] = useState<MaskSourceEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const groupRef = useRef<THREE.Group>(null)
 
   useEffect(() => {
     async function loadSources() {
@@ -32,9 +34,17 @@ export const PRIMARY_SCENE_CONTENT = () => {
   }, [])
 
   const scale = 3
+  const rotateSpeed = .05
 
-  return (
-    <>
+  // Rotate the group slowly every frame
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += rotateSpeed * delta
+    }
+  })
+
+return (
+    <group ref={groupRef} position={[0, 0, 0]}>
       {/* <ShaderTest /> */}
 
       {/* Complete Demo Layout */}
@@ -52,7 +62,7 @@ export const PRIMARY_SCENE_CONTENT = () => {
           <TripSequenceShuffler
             videos={videos}
             masks={masks}
-            videoHoldDuration={60}
+            videoHoldDuration={9000}
             videoTransitionDuration={4}
           />
         </group>
@@ -90,7 +100,7 @@ export const PRIMARY_SCENE_CONTENT = () => {
         </>
       )}
       
-    </>
+    </group>
   )
 }
 
@@ -108,6 +118,7 @@ const ShaderTest = () => {
         shaderId={`amazing-shader-ai-v1`}
         // geometry={new THREE.SphereGeometry(3, 32, 32)}
         position={[0, 0, 0]}
+        scale={[1, 1, 1]}
       />
     </>
   )

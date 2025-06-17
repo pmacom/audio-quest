@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Pencil } from "lucide-react"
+import { Pencil, SkipForward } from "lucide-react"
 import { VideoSourceEntry, MaskSourceEntry } from "@/Freq530/videos/types"
 import { TagSelector } from "./tag-selector"
 
@@ -95,6 +95,15 @@ export function SourceCard({ source, onUpdate }: Props) {
   const handleCancelEdit = () => {
     setShowEditModal(false)
     setEditingTitle("")
+  }
+
+  // Skip to last 2 seconds of video
+  const handleSkipToEnd = () => {
+    const video = videoRef.current
+    if (!video || !video.duration) return
+    
+    const targetTime = Math.max(0, video.duration - 2)
+    video.currentTime = targetTime
   }
 
   // Video playback and progress management - simplified to always use normal looping
@@ -219,6 +228,14 @@ export function SourceCard({ source, onUpdate }: Props) {
             <div className="absolute top-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
               {source.mode === "bounce" ? 'Bounce' : 'Loop'}
             </div>
+            {/* Skip to end button */}
+            <button
+              onClick={handleSkipToEnd}
+              className="absolute bottom-4 right-2 w-8 h-8 bg-black/70 hover:bg-black/90 text-white rounded-full flex items-center justify-center transition-all duration-200 opacity-0 group-hover:opacity-100"
+              title="Skip to last 2 seconds"
+            >
+              <SkipForward className="h-4 w-4" />
+            </button>
           </div>
                   ) : source.thumbnailSrc ? (
             <img src={source.thumbnailSrc} alt="thumbnail" className="w-full h-full object-cover" />

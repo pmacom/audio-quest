@@ -25,11 +25,11 @@ export const BasicTestCanvas = ({ children, debug }: BasicTestCanvasProps) => {
 
   return (
     <>
-      <div className="w-screen h-screen fixed top-0 left-0 z-[1] text-black">
+      <div className="w-screen h-screen fixed top-0 left-0 z-[1] text-black bg-black">
         <Canvas camera={{ position: [0, 8, 12], fov: 50 }} gl={{ alpha: true }}>
           <Stats />
           <ambientLight intensity={0.6} />
-          <color attach="background" args={["#333333"]} />
+          <color attach="background" args={["#000"]} />
           <pointLight position={[10, 10, 10]} intensity={1} />
           <pointLight position={[-10, 10, -10]} intensity={0.5} />
           <OrbitControls makeDefault />
