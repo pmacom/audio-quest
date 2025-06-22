@@ -51,19 +51,17 @@ export function TagSelector({ selectedTags, onTagsChange, className }: TagSelect
         {tags.map((tag) => {
           const isSelected = selectedTags.includes(tag.id)
           const isHovered = hoveredTag === tag.id
-          const showColor = isSelected || isHovered
-          const opacity = isSelected || isHovered ? 1 : 0.2
           
           return (
             <Tooltip key={tag.id}>
               <TooltipTrigger asChild>
                 <ToggleGroupItem
                   value={tag.id}
-                  className="w-8 h-5 p-0 !rounded-full border-2 transition-all duration-200 data-[state=on]:border-gray-400"
+                  className="w-8 h-5 p-0 !rounded-full border-2 transition-all duration-200"
                   style={{
-                    backgroundColor: showColor ? tag.color : '#9CA3AF',
-                    borderColor: isSelected ? '#6B7280' : 'transparent',
-                    opacity: opacity
+                    backgroundColor: isSelected ? tag.color : 'transparent',
+                    borderColor: tag.color,
+                    opacity: isSelected || isHovered ? 1 : 0.6
                   }}
                   onMouseEnter={() => setHoveredTag(tag.id)}
                   onMouseLeave={() => setHoveredTag(null)}

@@ -34,7 +34,7 @@ export const PRIMARY_SCENE_CONTENT = () => {
   }, [])
 
   const scale = 3
-  const rotateSpeed = .05
+  const rotateSpeed = 0 // .05
 
   // Rotate the group slowly every frame
   useFrame((state, delta) => {
@@ -48,7 +48,7 @@ return (
       {/* <ShaderTest /> */}
 
       {/* Complete Demo Layout */}
-      <DemoAudioVisualizersLayout position={[10, 0, 0]} />
+      {/* <DemoAudioVisualizersLayout position={[10, 0, 0]} /> */}
 
       {/* <group scale={20} position={[0, 0, 0]}>
         <BirdModel />
@@ -90,6 +90,46 @@ return (
           </group>
 
           <group scale={[scale, scale, scale]} rotation={[0, -Math.PI / 2, 0]}>
+            <TripSequenceShuffler
+              videos={videos}
+              masks={masks}
+              videoHoldDuration={60}
+              videoTransitionDuration={4}
+            />
+          </group>
+        </>
+      )}
+
+{true && !loading && videos.length > 0 && masks.length > 0 && (
+        <>
+          <group scale={[scale + 5, scale + 5, scale + 5]} rotation={[0, Math.PI / 2, 0]}>
+            <TripSequenceShuffler
+              videos={videos}
+              masks={masks}
+              videoHoldDuration={60}
+              videoTransitionDuration={4}
+            />
+          </group>
+    
+          <group scale={[scale + 5, scale + 5, scale + 5]} rotation={[0, Math.PI, 0]}>
+            <TripSequenceShuffler
+              videos={videos}
+              masks={masks}
+              videoHoldDuration={60}
+              videoTransitionDuration={4}
+            />
+          </group>
+
+          <group scale={[scale + 5, scale + 5, scale + 5]} rotation={[0, -Math.PI / 2, 0]}>
+            <TripSequenceShuffler
+              videos={videos}
+              masks={masks}
+              videoHoldDuration={60}
+              videoTransitionDuration={4}
+            />
+          </group>
+
+          <group scale={[scale + 5, scale + 5, scale + 5]} rotation={[0, 0, 0]}>
             <TripSequenceShuffler
               videos={videos}
               masks={masks}

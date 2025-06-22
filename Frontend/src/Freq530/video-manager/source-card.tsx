@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
@@ -8,16 +9,19 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Pencil, SkipForward } from "lucide-react"
+import { Pencil, SkipForward, Edit } from "lucide-react"
 import { VideoSourceEntry, MaskSourceEntry } from "@/Freq530/videos/types"
 import { TagSelector } from "./tag-selector"
 
 interface Props {
   source: VideoSourceEntry | MaskSourceEntry
   onUpdate: (updates: Partial<VideoSourceEntry | MaskSourceEntry>) => void
+  index?: number
+  type?: "segments" | "masks"
 }
 
-export function SourceCard({ source, onUpdate }: Props) {
+export function SourceCard({ source, onUpdate, index, type }: Props) {
+  const router = useRouter()
   const [preview, setPreview] = useState(false)
   const [progress, setProgress] = useState(0)
   const [testingSpeed, setTestingSpeed] = useState<'min' | 'max' | null>(null)
@@ -106,6 +110,13 @@ export function SourceCard({ source, onUpdate }: Props) {
     video.currentTime = targetTime
   }
 
+  // Handle edit in wizard
+  const handleEditWizard = () => {
+    if (type !== undefined && index !== undefined) {
+      router.push(`/manage/${type}/${index}`)
+    }
+  }
+
   // Video playback and progress management - simplified to always use normal looping
   useEffect(() => {
     const video = videoRef.current
@@ -158,7 +169,11 @@ export function SourceCard({ source, onUpdate }: Props) {
 
   return (
     <Card 
-      className="overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-card border-border gap-1 p-0"
+      className={`overflow-hidden shadow-sm hover:shadow-md transition-shadow gap-1 p-0 ${
+        source.completed 
+          ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' 
+          : 'bg-card border-border'
+      }`}
       onMouseEnter={() => setPreview(true)}
       onMouseLeave={() => setPreview(false)}
     >
@@ -175,14 +190,28 @@ export function SourceCard({ source, onUpdate }: Props) {
       >
         {source.title || source.clipSrc.split('/').pop()?.replace('.mp4', '') || 'Untitled'}
             </Label>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleEditClick}
-              className="h-6 w-6 p-0 hover:bg-muted"
-            >
-              <Pencil className="h-3 w-3" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleEditClick}
+                className="h-6 w-6 p-0 hover:bg-muted"
+                title="Edit title"
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+              {type !== undefined && index !== undefined && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleEditWizard}
+                  className="h-6 w-6 p-0 hover:bg-muted"
+                  title="Edit in wizard"
+                >
+                  <Edit className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
                         {/* <Label htmlFor={`enabled-${source.clipSrc}`} className="text-xs font-medium">Enabled</Label> */}
@@ -228,6 +257,12 @@ export function SourceCard({ source, onUpdate }: Props) {
             <div className="absolute top-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
               {source.mode === "bounce" ? 'Bounce' : 'Loop'}
             </div>
+            {/* Completion indicator */}
+            {source.completed && (
+              <div className="absolute top-2 left-2 bg-green-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                ✓ Completed
+              </div>
+            )}
             {/* Skip to end button */}
             <button
               onClick={handleSkipToEnd}

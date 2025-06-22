@@ -1,6 +1,27 @@
 html, body {
   background: black;
 }
+
+/* Force dark mode globally for manage routes */
+.manage-dark-theme,
+.manage-dark-theme * {
+  background-color: hsl(0 0% 3.9%) !important;
+  color: hsl(0 0% 98%) !important;
+}
+
+/* Override specific background utilities */
+.manage-dark-theme .bg-background,
+.manage-dark-theme .bg-card,
+.manage-dark-theme .bg-popover,
+.manage-dark-theme .bg-primary,
+.manage-dark-theme .bg-secondary,
+.manage-dark-theme .bg-muted {
+  background-color: hsl(0 0% 3.9%) !important;
+}
+
+.manage-dark-theme .bg-muted {
+  background-color: hsl(0 0% 14.9%) !important;
+}
 /* Force dark theme for all /manage routes */
 .manage-dark-theme {
   background-color: hsl(0 0% 3.9%) !important;
@@ -8,57 +29,71 @@ html, body {
   min-height: 100vh;
 }
 
-/* Override card backgrounds */
-.manage-dark-theme [data-slot="card"] {
+/* Override card backgrounds - multiple selectors for compatibility */
+.manage-dark-theme [data-slot="card"],
+.manage-dark-theme .card {
   background-color: hsl(0 0% 3.9%) !important;
   color: hsl(0 0% 98%) !important;
   border-color: hsl(0 0% 14.9%) !important;
 }
 
 /* Force dark theme for all card content */
-.manage-dark-theme [data-slot="card-content"] {
+.manage-dark-theme [data-slot="card-content"],
+.manage-dark-theme .card-content {
+  color: hsl(0 0% 98%) !important;
+  background-color: hsl(0 0% 3.9%) !important;
+}
+
+.manage-dark-theme [data-slot="card-header"],
+.manage-dark-theme .card-header {
+  color: hsl(0 0% 98%) !important;
+  background-color: hsl(0 0% 3.9%) !important;
+}
+
+.manage-dark-theme [data-slot="card-title"],
+.manage-dark-theme .card-title {
   color: hsl(0 0% 98%) !important;
 }
 
-.manage-dark-theme [data-slot="card-header"] {
-  color: hsl(0 0% 98%) !important;
-}
-
-.manage-dark-theme [data-slot="card-title"] {
-  color: hsl(0 0% 98%) !important;
-}
-
-.manage-dark-theme [data-slot="card-description"] {
+.manage-dark-theme [data-slot="card-description"],
+.manage-dark-theme .card-description {
   color: hsl(0 0% 63.9%) !important;
 }
 
 /* Switch styling */
-.manage-dark-theme [data-slot="switch"] {
+.manage-dark-theme [data-slot="switch"],
+.manage-dark-theme button[role="switch"] {
   background-color: hsl(0 0% 14.9%) !important;
 }
 
-.manage-dark-theme [data-slot="switch"][data-state="checked"] {
+.manage-dark-theme [data-slot="switch"][data-state="checked"],
+.manage-dark-theme button[role="switch"][data-state="checked"] {
   background-color: hsl(0 0% 98%) !important;
 }
 
-.manage-dark-theme [data-slot="switch-thumb"] {
+.manage-dark-theme [data-slot="switch-thumb"],
+.manage-dark-theme button[role="switch"] span {
   background-color: hsl(0 0% 98%) !important;
 }
 
-.manage-dark-theme [data-slot="switch"][data-state="checked"] [data-slot="switch-thumb"] {
+.manage-dark-theme [data-slot="switch"][data-state="checked"] [data-slot="switch-thumb"],
+.manage-dark-theme button[role="switch"][data-state="checked"] span {
   background-color: hsl(0 0% 9%) !important;
 }
 
 /* Slider styling */
-.manage-dark-theme [data-slot="slider-track"] {
+.manage-dark-theme [data-slot="slider-track"],
+.manage-dark-theme .slider-track {
   background-color: hsl(0 0% 14.9%) !important;
 }
 
-.manage-dark-theme [data-slot="slider-range"] {
+.manage-dark-theme [data-slot="slider-range"],
+.manage-dark-theme .slider-range {
   background-color: hsl(0 0% 98%) !important;
 }
 
-.manage-dark-theme [data-slot="slider-thumb"] {
+.manage-dark-theme [data-slot="slider-thumb"],
+.manage-dark-theme .slider-thumb {
   background-color: hsl(0 0% 3.9%) !important;
   border-color: hsl(0 0% 98%) !important;
 }
@@ -131,4 +166,62 @@ html, body {
 /* Primary text color for links */
 .manage-dark-theme .text-primary {
   color: hsl(0 0% 98%) !important;
+}
+
+/* Input and form controls */
+.manage-dark-theme input {
+  background-color: hsl(0 0% 3.9%) !important;
+  color: hsl(0 0% 98%) !important;
+  border-color: hsl(0 0% 14.9%) !important;
+}
+
+.manage-dark-theme input:focus {
+  border-color: hsl(0 0% 63.9%) !important;
+}
+
+/* Additional component overrides */
+.manage-dark-theme .border {
+  border-color: hsl(0 0% 14.9%) !important;
+}
+
+.manage-dark-theme .border-border {
+  border-color: hsl(0 0% 14.9%) !important;
+}
+
+.manage-dark-theme .bg-card {
+  background-color: hsl(0 0% 3.9%) !important;
+}
+
+.manage-dark-theme .text-card-foreground {
+  color: hsl(0 0% 98%) !important;
+}
+
+/* Force all divs and containers to dark */
+.manage-dark-theme div {
+  color: hsl(0 0% 98%) !important;
+}
+
+/* Override any remaining light backgrounds */
+.manage-dark-theme .bg-gray-50,
+.manage-dark-theme .bg-gray-100,
+.manage-dark-theme .bg-slate-50,
+.manage-dark-theme .bg-slate-100 {
+  background-color: hsl(0 0% 3.9%) !important;
+}
+
+/* Green completion styling adjustments for dark mode */
+.manage-dark-theme .bg-green-50 {
+  background-color: hsl(120 100% 10%) !important;
+}
+
+.manage-dark-theme .border-green-200 {
+  border-color: hsl(120 100% 25%) !important;
+}
+
+.manage-dark-theme .dark\:bg-green-900\/20 {
+  background-color: hsl(120 100% 10%) !important;
+}
+
+.manage-dark-theme .dark\:border-green-700 {
+  border-color: hsl(120 100% 25%) !important;
 } 

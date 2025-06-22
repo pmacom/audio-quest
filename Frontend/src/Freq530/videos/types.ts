@@ -66,6 +66,7 @@ export interface VideoSourceEntry {
   customSpeedMax?: number  // Custom speed max (0.5 - 2.5)
   tags?: string[] // Array of tag IDs
   bounceProcessed?: boolean // Flag indicating if bounce video has been created
+  completed?: boolean // Flag indicating if editing is completed
 }
 
 export interface MaskSourceEntry {
@@ -89,6 +90,7 @@ export interface MaskSourceEntry {
   customSpeedMax?: number  // Custom speed max (0.5 - 2.5)
   tags?: string[] // Array of tag IDs
   bounceProcessed?: boolean // Flag indicating if bounce video has been created
+  completed?: boolean // Flag indicating if editing is completed
 }
 
 // Adapter functions to convert new schema to legacy format

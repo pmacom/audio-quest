@@ -181,6 +181,8 @@ export function MediaManager() {
                   <SourceCard
                     key={segment.clipSrc}
                     source={segment}
+                    index={idx}
+                    type="segments"
                     onUpdate={updates =>
                       setSegments(list =>
                         list.map((s, i) => (i === idx ? { ...s, ...updates } : s)),
@@ -212,6 +214,8 @@ export function MediaManager() {
                   <SourceCard
                     key={mask.clipSrc}
                     source={mask}
+                    index={idx}
+                    type="masks"
                     onUpdate={updates =>
                       setMasks(list =>
                         list.map((m, i) => (i === idx ? { ...m, ...updates } : m)),
