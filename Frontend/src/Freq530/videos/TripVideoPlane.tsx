@@ -60,6 +60,11 @@ const TripVideoPlane = ({
   videoBSpeed,
 }: TripVideoPlaneProps) => {
   const amplitude = useFreq530(state => state.values.amplitude)
+  const low = useFreq530(state => state.values.low)
+  const mid = useFreq530(state => state.values.mid)
+  const high = useFreq530(state => state.values.high)
+  const spectralCentroid = useFreq530(state => state.values.spectralCentroid)
+  
   const planeRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<ShaderMaterial>(null);
   // Store aspect ratio values so we can smoothly transition when sources change
@@ -96,11 +101,70 @@ const TripVideoPlane = ({
     speedMultiplier: { value: 1.0, min: 0.1, max: 3.0, step: 0.1, label: 'Speed Multiplier' },
     logAmplitude: { value: false, label: 'Log Amplitude Values' },
   });
+
+  // Bloom opacity controls - cleaner approach to avoid hue shifts
+  const { 
+    enableBloom, 
+    bloomIntensity, 
+    bloomFrequencySource, 
+    bloomMethod,
+    debugBloomValues,
+    forceTestPixels 
+  } = useControls('Bloom Effects', {
+    enableBloom: { value: true, label: 'Enable Bloom' },
+    bloomIntensity: { value: 0.8, min: 0.0, max: 2.0, step: 0.1, label: 'Bloom Intensity' },
+    bloomFrequencySource: { 
+      value: 'amplitude', 
+      options: ['amplitude', 'low', 'mid', 'high', 'spectralCentroid'],
+      label: 'Frequency Source'
+    },
+    bloomMethod: {
+      value: 'opacity',
+      options: ['opacity', 'brightness', 'saturation'],
+      label: 'Bloom Method'
+    },
+    debugBloomValues: { value: false, label: 'Debug Bloom Values' },
+    forceTestPixels: { value: false, label: 'Force Bright Test Pixels' }
+  });
   
   // Apply speed multiplier and enable/disable toggle
   const finalVideoARate = enableAmplitudeSpeed ? videoARate * speedMultiplier : 1.0;
   const finalVideoBRate = enableAmplitudeSpeed ? videoBRate * speedMultiplier : 1.0;
   const finalMaskRate = enableAmplitudeSpeed ? maskRate * speedMultiplier : 1.0;
+
+  // Calculate bloom brightness based on selected frequency source
+  const getFrequencyValue = (source: string): number => {
+    switch (source) {
+      case 'low': return low;
+      case 'mid': return mid;
+      case 'high': return high;
+      case 'spectralCentroid': return spectralCentroid;
+      case 'amplitude':
+      default: return amplitude;
+    }
+  };
+
+  const selectedFrequencyValue = getFrequencyValue(bloomFrequencySource);
+  const bloomValue = enableBloom ? selectedFrequencyValue * bloomIntensity : 0.0;
+
+  // Debug bloom values
+  if (debugBloomValues) {
+    console.log('🌟 Bloom Debug Values:', {
+      enabled: enableBloom,
+      method: bloomMethod,
+      frequencySource: bloomFrequencySource,
+      rawFrequencyValue: selectedFrequencyValue.toFixed(4),
+      bloomIntensity: bloomIntensity.toFixed(2),
+      finalBloomValue: bloomValue.toFixed(4),
+      audioValues: {
+        amplitude: amplitude.toFixed(4),
+        low: low.toFixed(4),
+        mid: mid.toFixed(4),
+        high: high.toFixed(4),
+        spectralCentroid: spectralCentroid.toFixed(4)
+      }
+    });
+  }
   
   // Optional logging for debugging
   if (logAmplitude) {
@@ -123,7 +187,15 @@ const TripVideoPlane = ({
       },
       videoDirection: videoDirection.toFixed(3),
       speedMultiplier: speedMultiplier.toFixed(2),
-      enabled: enableAmplitudeSpeed
+      enabled: enableAmplitudeSpeed,
+      // ✨ Bloom debugging
+      bloom: {
+        enabled: enableBloom,
+        source: bloomFrequencySource,
+        sourceValue: selectedFrequencyValue.toFixed(3),
+        intensity: bloomIntensity.toFixed(2),
+                 finalBloomValue: bloomValue.toFixed(3)
+      }
     });
   }
   
@@ -283,6 +355,9 @@ const TripVideoPlane = ({
         uvScale: { value: 1.0 },
         maskContrast: { value: 1.0 },
         maskBrightness: { value: 1.0 },
+        bloomValue: { value: 0.0 },
+        bloomMethod: { value: 0 }, // 0=opacity, 1=brightness, 2=saturation
+        forceTestPixels: { value: 0 }, // 0=off, 1=on
       },
       vertexShader: VideoFadeShader.vertexShader,
       fragmentShader: VideoFadeShader.fragmentShader,
@@ -379,6 +454,9 @@ const TripVideoPlane = ({
       materialRef.current.uniforms.uvScale.value = scaleValue;
       materialRef.current.uniforms.maskContrast.value = maskContrast;
       materialRef.current.uniforms.maskBrightness.value = brightness;
+      materialRef.current.uniforms.bloomValue.value = bloomValue;
+      materialRef.current.uniforms.bloomMethod.value = bloomMethod === 'opacity' ? 0 : bloomMethod === 'brightness' ? 1 : 2;
+      materialRef.current.uniforms.forceTestPixels.value = forceTestPixels ? 1 : 0;
     }
   });
 

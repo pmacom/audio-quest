@@ -19,6 +19,9 @@ const VideoFadeShader = {
     uvScale: { value: 1.0 },
     maskContrast: { value: 1.0 }, // Uniform for adjusting mask contrast
     maskBrightness: { value: 1.0 }, // Brightness adjustment
+    bloomValue: { value: 0.0 }, // Bloom effect value (0-1)
+    bloomMethod: { value: 0 }, // 0=opacity, 1=brightness, 2=saturation
+    forceTestPixels: { value: 0 }, // 0=off, 1=on
   },
   vertexShader: `
     varying vec2 vUv;
@@ -47,6 +50,9 @@ const VideoFadeShader = {
     uniform float uvScale;
     uniform float maskContrast;  // Uniform for adjusting mask contrast
     uniform float maskBrightness;  // Brightness adjustment
+    uniform float bloomValue;  // Bloom effect value (0-1)
+    uniform int bloomMethod;  // 0=opacity, 1=brightness, 2=saturation
+    uniform int forceTestPixels;  // 0=off, 1=on
 
     varying vec2 vUv;
     varying vec3 vPosition;
@@ -118,7 +124,39 @@ const VideoFadeShader = {
         finalAlpha = max(finalAlpha, 0.2);
       }
 
-      gl_FragColor = vec4(blendedVideo.rgb * maskLuminance, finalAlpha);
+      // Base color calculation
+      vec3 finalColor = blendedVideo.rgb * maskLuminance;
+      
+      // Apply bloom effect - CRITICAL: must generate RGB values > 1.0 for bloom to work!
+      if (bloomValue > 0.01) {
+        
+        if (bloomMethod == 0) {
+          // OPACITY METHOD: Proportional brightness boost (preserves hue)
+          // Multiply by large values to ensure we exceed 1.0 for bloom
+          finalColor = finalColor * (1.0 + bloomValue * 5.0);
+          
+        } else if (bloomMethod == 1) {
+          // BRIGHTNESS METHOD: Aggressive brightness boost 
+          finalColor = finalColor * (1.0 + bloomValue * 8.0);
+          finalColor += vec3(bloomValue * 1.0); // Add flat brightness
+          
+        } else if (bloomMethod == 2) {
+          // SATURATION METHOD: Enhanced saturation + brightness
+          float luminance = dot(finalColor, vec3(0.299, 0.587, 0.114));
+          vec3 gray = vec3(luminance);
+          finalColor = mix(gray, finalColor, 1.0 + bloomValue * 2.0); // Increase saturation
+          finalColor = finalColor * (1.0 + bloomValue * 4.0); // Strong luminance boost
+        }
+        
+        // Debug: Force some pixels to be super bright to test bloom
+        if (forceTestPixels == 1) {
+          if (mod(gl_FragCoord.x + gl_FragCoord.y, 100.0) < 5.0) {
+            finalColor = vec3(10.0); // Super bright white stripes
+          }
+        }
+      }
+
+      gl_FragColor = vec4(finalColor, finalAlpha);
     }
   `,
   transparent: true,
