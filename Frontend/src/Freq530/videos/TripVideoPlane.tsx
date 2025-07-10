@@ -109,13 +109,19 @@ const TripVideoPlane = ({
     bloomFrequencySource, 
     bloomMethod,
     debugBloomValues,
-    forceTestPixels 
+    forceTestPixels,
+    bloomMapMin,
+    bloomMapMax,
+    // New controls for factorTest
+    factorTestSource,
+    factorMapMin,
+    factorMapMax
   } = useControls('Bloom Effects', {
     enableBloom: { value: true, label: 'Enable Bloom' },
     bloomIntensity: { value: 0.8, min: 0.0, max: 2.0, step: 0.1, label: 'Bloom Intensity' },
     bloomFrequencySource: { 
       value: 'amplitude', 
-      options: ['amplitude', 'low', 'mid', 'high', 'spectralCentroid'],
+      options: ['amplitude', 'low', 'mid', 'high', 'spectralCentroid', 'kick', 'snare', 'hihat', 'beatIntensity', 'spectralFlux'],
       label: 'Frequency Source'
     },
     bloomMethod: {
@@ -124,7 +130,17 @@ const TripVideoPlane = ({
       label: 'Bloom Method'
     },
     debugBloomValues: { value: false, label: 'Debug Bloom Values' },
-    forceTestPixels: { value: false, label: 'Force Bright Test Pixels' }
+    forceTestPixels: { value: false, label: 'Force Bright Test Pixels' },
+    bloomMapMin: { value: 0.0, min: 0.0, max: 1000.0, step: 1.0, label: 'Bloom Map Min' },
+    bloomMapMax: { value: 1.0, min: 0.0, max: 1000.0, step: 1.0, label: 'Bloom Map Max' },
+    // New factorTest controls
+    factorTestSource: { 
+      value: 'amplitude', 
+      options: ['amplitude', 'low', 'mid', 'high', 'spectralCentroid', 'kick', 'snare', 'hihat', 'beatIntensity', 'spectralFlux'],
+      label: 'Factor Test Source'
+    },
+    factorMapMin: { value: 0.0, min: 0.0, max: 1.0, step: 0.01, label: 'Factor Map Min' },
+    factorMapMax: { value: 1.0, min: 0.0, max: 1.0, step: 0.01, label: 'Factor Map Max' }
   });
   
   // Apply speed multiplier and enable/disable toggle
@@ -139,13 +155,27 @@ const TripVideoPlane = ({
       case 'mid': return mid;
       case 'high': return high;
       case 'spectralCentroid': return spectralCentroid;
+      case 'kick': return useFreq530.getState().values.kick;
+      case 'snare': return useFreq530.getState().values.snare;
+      case 'hihat': return useFreq530.getState().values.hihat;
+      case 'beatIntensity': return useFreq530.getState().values.beatIntensity;
+      case 'spectralFlux': return useFreq530.getState().values.spectralFlux;
       case 'amplitude':
       default: return amplitude;
     }
   };
 
   const selectedFrequencyValue = getFrequencyValue(bloomFrequencySource);
-  const bloomValue = enableBloom ? selectedFrequencyValue * bloomIntensity : 0.0;
+  
+  // Map the value to the custom range
+  const mappedValue = bloomMapMin + (selectedFrequencyValue * (bloomMapMax - bloomMapMin));
+  
+  const bloomValue = enableBloom ? mappedValue * bloomIntensity : 0.0;
+
+  // Compute factorTest value similarly
+  const selectedFactorValue = getFrequencyValue(factorTestSource);
+  const mappedFactor = factorMapMin + (selectedFactorValue * (factorMapMax - factorMapMin));
+  const factorValue = mappedFactor; // No intensity multiplier for factor, but can add if needed
 
   // Debug bloom values
   if (debugBloomValues) {
@@ -154,14 +184,28 @@ const TripVideoPlane = ({
       method: bloomMethod,
       frequencySource: bloomFrequencySource,
       rawFrequencyValue: selectedFrequencyValue.toFixed(4),
+      mappedValue: mappedValue.toFixed(4),
       bloomIntensity: bloomIntensity.toFixed(2),
       finalBloomValue: bloomValue.toFixed(4),
+      mapRange: [bloomMapMin, bloomMapMax],
+      // Add factorTest debug
+      factorTest: {
+        source: factorTestSource,
+        rawValue: selectedFactorValue.toFixed(4),
+        mappedValue: mappedFactor.toFixed(4),
+        mapRange: [factorMapMin, factorMapMax]
+      },
       audioValues: {
         amplitude: amplitude.toFixed(4),
         low: low.toFixed(4),
         mid: mid.toFixed(4),
         high: high.toFixed(4),
-        spectralCentroid: spectralCentroid.toFixed(4)
+        spectralCentroid: spectralCentroid.toFixed(4),
+        kick: useFreq530.getState().values.kick.toFixed(4),
+        snare: useFreq530.getState().values.snare.toFixed(4),
+        hihat: useFreq530.getState().values.hihat.toFixed(4),
+        beatIntensity: useFreq530.getState().values.beatIntensity.toFixed(4),
+        spectralFlux: useFreq530.getState().values.spectralFlux.toFixed(4)
       }
     });
   }
@@ -382,7 +426,7 @@ const TripVideoPlane = ({
       
       materialRef.current.uniforms.videoMix.value = videoDirection;
       materialRef.current.uniforms.maskMix.value = maskDirection;
-      materialRef.current.uniforms.factorTest.value = factorTest;
+      materialRef.current.uniforms.factorTest.value = factorValue;
 
       // Calculate target aspect ratios from video metadata or fallback to element properties
       let targetAspectA = 1;
