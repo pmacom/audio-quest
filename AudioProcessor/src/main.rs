@@ -26,6 +26,9 @@ use rustfft::{FftPlanner, num_complex::Complex, num_traits::Zero};
 use std::sync::atomic::{AtomicU64, Ordering};
 use prost::Message as ProstMessage;
 
+const SPECTROGRAM_WIDTH: usize = 256;
+const SPECTROGRAM_HEIGHT: usize = 64;
+
 pub struct AppConfig {
     pub detail_level: DetailLevel,
     pub input_device: cpal::Device,
@@ -330,7 +333,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Audio processor with detail level
     let mut audio_processor = AudioProcessor::new_with_detail_level(config.detail_level.clone());
-    
+    audio_processor.spectrogram_buffer = (0..SPECTROGRAM_WIDTH).map(|_| vec![0.0; SPECTROGRAM_HEIGHT]).collect();
+
     // Configure amplitude envelope for smooth, responsive audio reactions
     // You can choose from: Smooth, Responsive, Punchy, or Sustained
     audio_processor.set_amplitude_envelope_profile(audio::processor::EnvelopeProfile::Responsive);

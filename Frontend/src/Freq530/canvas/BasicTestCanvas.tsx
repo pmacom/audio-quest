@@ -51,12 +51,12 @@ export const BasicTestCanvas = ({ children, debug }: BasicTestCanvasProps) => {
           <OrbitControls makeDefault />
           
           {/* Test cube to verify bloom is working */}
-          <BloomTestCube />
+          {/* <BloomTestCube /> */}
           
           {children}
-          <EffectComposer>
+          {/* <EffectComposer>
             <PostProcessAudioEffects />
-          </EffectComposer>
+          </EffectComposer> */}
         </Canvas>
       </div>
       {debug && <DebugFreq530 />}

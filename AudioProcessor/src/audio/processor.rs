@@ -1,14 +1,16 @@
 use crate::state::PrimaryFreq530State;
-use image::{ImageBuffer, Rgb};
-use std::io::Cursor;
 
 // Define GRID_MAP_SIZE, e.g., for a 16x16 grid representation
 const GRID_MAP_SIZE: usize = 256;
 
+// Define SPECTROGRAM_WIDTH and HEIGHT for the rolling buffer
+const SPECTROGRAM_WIDTH: usize = 256;
+const SPECTROGRAM_HEIGHT: usize = 64;
+
 // Re-export DetailLevel from main to avoid circular dependencies
 #[derive(Debug, Clone)]
 pub enum DetailLevel {
-    Basic,    // Omits spectrogram_png and frequency_grid_map
+    Basic,    // Omits spectrogram_data and frequency_grid_map
     Standard, // Includes most fields but optimized
     Full,     // Includes all fields including expensive computations
 }
@@ -144,6 +146,33 @@ pub struct AudioProcessor {
     pub amplitude_envelope: AmplitudeEnvelope,    // Enhanced envelope system
     pub smoothed_amplitude: f32,                  // The final smoothed amplitude output
     pub amplitude_velocity: f32,                  // Rate of change for momentum-based smoothing
+    // Expanded histories for velocities (rate of change) per band
+    pub low_velocity_history: HistoryState,
+    pub mid_velocity_history: HistoryState,
+    pub high_velocity_history: HistoryState,
+    pub kick_velocity_history: HistoryState,
+    pub snare_velocity_history: HistoryState,
+    pub hihat_velocity_history: HistoryState,
+    // Peak-hold values with decay for each band (useful for "spiked" visuals)
+    pub low_peak_hold: f32,
+    pub mid_peak_hold: f32,
+    pub high_peak_hold: f32,
+    pub kick_peak_hold: f32,
+    pub snare_peak_hold: f32,
+    pub hihat_peak_hold: f32,
+    pub amplitude_peak_hold: f32,
+    // Log-scaled versions for perceptual uniformity in visuals
+    pub low_log: f32,
+    pub mid_log: f32,
+    pub high_log: f32,
+    // Balance/difference metrics (e.g., low-mid balance for stereo-like effects)
+    pub low_mid_balance: f32,
+    pub mid_high_balance: f32,
+    // Onset strength (transient detection beyond spectral flux)
+    pub onset_strength: f32,
+    pub prev_onset_strength: f32,
+    // Rolling spectrogram buffer for data-based texture (no PNG)
+    pub spectrogram_buffer: Vec<Vec<f32>>,
 }
 
 // New envelope system for sophisticated amplitude smoothing
@@ -379,81 +408,39 @@ impl AudioProcessor {
             amplitude_envelope: AmplitudeEnvelope::new(),
             smoothed_amplitude: 0.0,
             amplitude_velocity: 0.0,
+            // Initialize velocity histories
+            low_velocity_history: HistoryState::new(CONSTANTS.history_window_size.freq_history_window),
+            mid_velocity_history: HistoryState::new(CONSTANTS.history_window_size.freq_history_window),
+            high_velocity_history: HistoryState::new(CONSTANTS.history_window_size.freq_history_window),
+            kick_velocity_history: HistoryState::new(CONSTANTS.history_window_size.beat_history_window),
+            snare_velocity_history: HistoryState::new(CONSTANTS.history_window_size.beat_history_window),
+            hihat_velocity_history: HistoryState::new(CONSTANTS.history_window_size.beat_history_window),
+            // Initialize peak holds
+            low_peak_hold: 0.0,
+            mid_peak_hold: 0.0,
+            high_peak_hold: 0.0,
+            kick_peak_hold: 0.0,
+            snare_peak_hold: 0.0,
+            hihat_peak_hold: 0.0,
+            amplitude_peak_hold: 0.0,
+            // Initialize log-scaled and balance
+            low_log: 0.0,
+            mid_log: 0.0,
+            high_log: 0.0,
+            low_mid_balance: 0.0,
+            mid_high_balance: 0.0,
+            // Initialize onset
+            onset_strength: 0.0,
+            prev_onset_strength: 0.0,
+            // Initialize rolling spectrogram buffer
+            spectrogram_buffer: (0..SPECTROGRAM_WIDTH).map(|_| vec![0.0; SPECTROGRAM_HEIGHT]).collect(),
         }
     }
 
     pub fn new_with_detail_level(detail_level: DetailLevel) -> Self {
-        AudioProcessor {
-            detail_level,
-            low_history: HistoryState::new(CONSTANTS.history_window_size.freq_history_window * 2),
-            mid_history: HistoryState::new(CONSTANTS.history_window_size.freq_history_window * 2),
-            high_history: HistoryState::new(CONSTANTS.history_window_size.freq_history_window * 2),
-            kick_history: HistoryState::new(CONSTANTS.history_window_size.beat_history_window),
-            snare_history: HistoryState::new(CONSTANTS.history_window_size.beat_history_window),
-            hihat_history: HistoryState::new(CONSTANTS.history_window_size.beat_history_window),
-            vocal_history: HistoryState::new(CONSTANTS.history_window_size.vocal_history_window),
-            amplitude_history: HistoryState::new(CONSTANTS.history_window_size.freq_history_window),
-            raw_amplitude_history: HistoryState::new(CONSTANTS.history_window_size.freq_history_window),
-            prev_low: 0.0,
-            prev_mid: 0.0,
-            prev_high: 0.0,
-            prev_kick: 0.0,
-            prev_snare: 0.0,
-            prev_hihat: 0.0,
-            prev_amplitude: 0.0,
-            prev_raw_amplitude: 0.0,
-            snare_average: 0.0,
-            hihat_average: 0.0,
-            prev_fft_bins: None,
-            spectral_flux: 0.0,
-            last_beat_time: f64::NEG_INFINITY,
-            beat_times: Vec::new(),
-            time: 0.0,
-            adjusted_time: 0.0,
-            beat_intensity: 0.0,
-            bps: 0.0,
-            kick_average: 0.0,
-            kick_gain: 1.0,
-            snare_gain: 1.0,
-            hihat_gain: 1.0,
-            vocal_gain: 1.0,
-            amplitude_gain: 1.0,
-            raw_amplitude_gain: 1.0,
-            low_gain: 1.0,
-            mid_gain: 1.0,
-            high_gain: 1.0,
-            last_update: 0.0,
-            pending_state: None,
-            max_low: 1.0,
-            max_mid: 1.0,
-            max_high: 1.0,
-            max_kick: 1.0,
-            max_snare: 1.0,
-            max_hihat: 1.0,
-            max_amplitude: 1.0,
-            max_raw_amplitude: 1.0,
-            low_dynamic_smoothed: 0.5,
-            mid_dynamic_smoothed: 0.5,
-            high_dynamic_smoothed: 0.5,
-            kick_dynamic_smoothed: 0.5,
-            snare_dynamic_smoothed: 0.5,
-            hihat_dynamic_smoothed: 0.5,
-            amplitude_dynamic_smoothed: 0.5,
-            raw_amplitude_dynamic_smoothed: 0.5,
-            fade_in_out: 0.0,
-            quantized_bands: vec![0; 32],
-            rolling_max_bands: 1.0,
-            prev_frequency_grid: None,
-            // Initialize new amplitude calculation fields
-            amplitude_baseline: 0.001,      // Small non-zero baseline
-            amplitude_peak_tracker: 0.01,   // Initial peak reference
-            silence_counter: 0,
-            activity_smoothing: 0.0,
-            // Initialize new envelope fields
-            amplitude_envelope: AmplitudeEnvelope::new(),
-            smoothed_amplitude: 0.0,
-            amplitude_velocity: 0.0,
-        }
+        let mut processor = Self::new();
+        processor.detail_level = detail_level;
+        processor
     }
 
     pub fn update_base_state(&mut self, delta_time: f32, frequency_data: &[f32], now: f64) -> Option<PrimaryFreq530State> {
@@ -475,39 +462,29 @@ impl AudioProcessor {
             0.0
         };
         
-        // --- BEGIN SPECTROGRAM PNG GENERATION (conditional based on detail level) ---
-        let spectrogram_png_data = match self.detail_level {
+        let spectrogram_data_f64 = match self.detail_level {
             DetailLevel::Full => {
-                // Only generate expensive spectrogram PNG in Full detail mode
                 if !frequency_data.is_empty() {
-                    let width = 64;
-                    let height = frequency_data.len().min(64); // Use up to 64 bins for height
-                    let mut buffer = vec![0u8; width * height * 3];
-                    // Normalize FFT data for this frame
+                    let height = frequency_data.len().min(SPECTROGRAM_HEIGHT);
+                    let mut new_column = vec![0.0; height];
                     let min_val = frequency_data.iter().cloned().fold(f32::INFINITY, f32::min);
                     let max_val = frequency_data.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
                     let norm = (max_val - min_val).max(1e-6);
-                    for x in 0..width {
-                        for y in 0..height {
-                            let idx = y * width + x;
-                            let bin = y;
-                            let v = ((frequency_data[bin] - min_val) / norm * 255.0).clamp(0.0, 255.0) as u8;
-                            buffer[idx * 3 + 0] = v;
-                            buffer[idx * 3 + 1] = v;
-                            buffer[idx * 3 + 2] = v;
-                        }
+                    for y in 0..height {
+                        new_column[y] = ((frequency_data[y] - min_val) / norm).clamp(0.0, 1.0);
                     }
-                    let img = ImageBuffer::<Rgb<u8>, _>::from_raw(width as u32, height as u32, buffer).unwrap();
-                    let mut png_bytes: Vec<u8> = Vec::new();
-                    img.write_to(&mut Cursor::new(&mut png_bytes), image::ImageFormat::Png).unwrap();
-                    Some(png_bytes)
+                    // Shift buffer left, add new column
+                    self.spectrogram_buffer.rotate_left(1);
+                    self.spectrogram_buffer[SPECTROGRAM_WIDTH - 1] = new_column;
+                    // Flatten to Vec<f64>
+                    self.spectrogram_buffer.iter().flatten().map(|&v| v as f64).collect()
                 } else {
-                    None
+                    vec![0.0; SPECTROGRAM_WIDTH * SPECTROGRAM_HEIGHT]
                 }
-            },
-            DetailLevel::Basic | DetailLevel::Standard => None, // Skip expensive PNG generation
+            }
+            _ => vec![0.0; SPECTROGRAM_WIDTH * SPECTROGRAM_HEIGHT], // Default for lower details
         };
-        // --- END SPECTROGRAM PNG GENERATION ---
+        
         let state = if frequency_data.is_empty() {
             PrimaryFreq530State {
                 time: self.time,
@@ -543,11 +520,30 @@ impl AudioProcessor {
                 beat_times: self.beat_times.clone(),
                 last_beat_time: sanitized_last_beat_time,
                 quantized_bands: self.quantized_bands.iter().map(|&b| b as u32).collect(),
-                spectrogram_png: spectrogram_png_data,
                 spectral_centroid: 0.0,
-                chromagram: vec![0.0; 12], // Default for empty data
-                beat_phase: 0.0, // Default for empty data
-                frequency_grid_map: vec![0.0; GRID_MAP_SIZE], // Default for empty data
+                chromagram: vec![0.0; 12],
+                beat_phase: 0.0,
+                frequency_grid_map: vec![0.0; GRID_MAP_SIZE],
+                low_velocity: 0.0,
+                mid_velocity: 0.0,
+                high_velocity: 0.0,
+                kick_velocity: 0.0,
+                snare_velocity: 0.0,
+                hihat_velocity: 0.0,
+                low_peak_hold: 0.0,
+                mid_peak_hold: 0.0,
+                high_peak_hold: 0.0,
+                kick_peak_hold: 0.0,
+                snare_peak_hold: 0.0,
+                hihat_peak_hold: 0.0,
+                amplitude_peak_hold: 0.0,
+                low_log: 0.0,
+                mid_log: 0.0,
+                high_log: 0.0,
+                low_mid_balance: 0.5,
+                mid_high_balance: 0.5,
+                onset_strength: 0.0,
+                spectrogram_data: vec![0.0; SPECTROGRAM_WIDTH * SPECTROGRAM_HEIGHT],
             }
         } else {
             let sample_rate = 44100.0;
@@ -570,13 +566,11 @@ impl AudioProcessor {
             let mut weighted_sum_freq = 0.0;
             let mut sum_mag = 0.0;
             for (i, mag) in frequency_data.iter().enumerate() {
-                // Each bin represents a frequency range. Use the center frequency of the bin.
                 let freq = (i as f32 + 0.5) * bin_width;
                 weighted_sum_freq += freq * mag;
                 sum_mag += mag;
             }
             let mut spectral_centroid_value = if sum_mag > 1e-6 { weighted_sum_freq / sum_mag } else { 0.0 };
-            // Normalize by Nyquist frequency (sample_rate / 2)
             let nyquist_freq = sample_rate / 2.0;
             spectral_centroid_value = if nyquist_freq > 1e-6 { spectral_centroid_value / nyquist_freq } else { 0.0 };
             // --- END SPECTRAL CENTROID CALCULATION ---
@@ -586,14 +580,10 @@ impl AudioProcessor {
             if !frequency_data.is_empty() {
                 let reference_freq_a4 = 440.0f32;
                 for (i, mag) in frequency_data.iter().enumerate() {
-                    if *mag <= 1e-6 { continue; } // Skip silent bins
-                    let freq = (i as f32 + 0.5) * bin_width; // Center frequency of the bin
+                    if *mag <= 1e-6 { continue; }
+                    let freq = (i as f32 + 0.5) * bin_width;
                     if freq <= 0.0 { continue; }
 
-                    // Convert frequency to MIDI note number (approximate)
-                    // MIDI note = 12 * log2(freq / C0_freq) where C0_freq is reference for MIDI note 0
-                    // Or, relative to A4 (MIDI note 69):
-                    // MIDI note = 69 + 12 * log2(freq / 440.0)
                     let midi_note = 69.0 + 12.0 * (freq / reference_freq_a4).log2();
                     if midi_note < 0.0 { continue; }
 
@@ -601,7 +591,6 @@ impl AudioProcessor {
                     chromagram_values[pitch_class as usize] += mag;
                 }
 
-                // Normalize chromagram (e.g., max value to 1.0)
                 let max_chroma_val = chromagram_values.iter().cloned().fold(0.0f32, f32::max);
                 if max_chroma_val > 1e-6 {
                     for val in chromagram_values.iter_mut() { *val /= max_chroma_val; }
@@ -734,14 +723,9 @@ impl AudioProcessor {
             // --- BEGIN FREQUENCY GRID MAP CALCULATION (conditional based on detail level) ---
             let frequency_grid_map_f64 = match self.detail_level {
                 DetailLevel::Basic => {
-                    // Skip expensive grid map calculation in Basic mode
                     vec![0.0; GRID_MAP_SIZE]
                 },
                 DetailLevel::Standard | DetailLevel::Full => {
-                    // Create a 16x16 grid representing a 3D spectrogram
-                    // X-axis: frequency bands (low to high)
-                    // Y-axis: temporal/harmonic analysis 
-                    // Z-axis: magnitude (will be the displacement height)
                     let grid_size = 16; // 16x16 = 256 total points
                     let mut grid_map_values_f32 = vec![0.0f32; GRID_MAP_SIZE];
             
@@ -750,29 +734,23 @@ impl AudioProcessor {
                         let nyquist = sample_rate / 2.0;
                         let bin_width = nyquist / frequency_data.len() as f32;
                         
-                        // Calculate overall audio activity level
                         let total_energy: f32 = frequency_data.iter().map(|&x| x * x).sum();
                         let avg_energy = total_energy / frequency_data.len() as f32;
-                        let audio_activity_threshold = 0.00001; // Much lower threshold - just above noise floor
+                        let audio_activity_threshold = 0.00001;
                         let is_audio_active = avg_energy > audio_activity_threshold;
                         
-                        // Calculate a more sensitive activity level for scaling effects
                         let activity_level = if avg_energy > audio_activity_threshold {
-                            (avg_energy / (audio_activity_threshold * 10.0)).min(1.0) // Scale 0-1 based on energy
+                            (avg_energy / (audio_activity_threshold * 10.0)).min(1.0)
                         } else {
                             0.0
                         };
                         
-                        // Define logarithmic frequency bands for better distribution
-                        // Instead of linear bands, use logarithmic scale to better represent human hearing
                         let mut frequency_bands = Vec::new();
                         for x in 0..grid_size {
-                            // Logarithmic frequency mapping: 20Hz to 20kHz
                             let min_freq = 20.0f32;
                             let max_freq = 20000.0f32;
                             let freq_ratio = x as f32 / (grid_size - 1) as f32;
                             
-                            // Logarithmic scaling for more even distribution
                             let start_freq = min_freq * (max_freq / min_freq).powf(freq_ratio);
                             let end_freq = if x < grid_size - 1 {
                                 min_freq * (max_freq / min_freq).powf((x + 1) as f32 / (grid_size - 1) as f32)
@@ -780,7 +758,6 @@ impl AudioProcessor {
                                 max_freq
                             };
                             
-                            // Convert frequencies to bin indices
                             let start_bin = ((start_freq / bin_width) as usize).min(frequency_data.len() - 1);
                             let end_bin = ((end_freq / bin_width) as usize).min(frequency_data.len() - 1);
                             
@@ -789,10 +766,8 @@ impl AudioProcessor {
                         
                         for grid_y in 0..grid_size {
                             for grid_x in 0..grid_size {
-                                // Map X coordinate to frequency band
                                 let (start_bin, end_bin, start_freq, end_freq) = frequency_bands[grid_x];
                                 
-                                // Extract magnitude for this frequency band
                                 let mut band_magnitude = 0.0f32;
                                 let mut bin_count = 0;
                                 
@@ -805,30 +780,24 @@ impl AudioProcessor {
                                     band_magnitude /= bin_count as f32;
                                 }
                                 
-                                // Apply Y-axis modulation for temporal/harmonic effects
-                                // ALL ROWS start with base frequency data, then add effects
-                                let mut final_magnitude = band_magnitude; // Base for all rows
+                                let mut final_magnitude = band_magnitude;
                                 
                                 match grid_y {
-                                    // Bottom rows: Pure frequency magnitude + slight bass emphasis
                                     0..=3 => {
                                         let bass_boost = if grid_x < 4 { 1.0 + self.prev_low * 0.3 } else { 1.0 };
                                         final_magnitude = band_magnitude * bass_boost;
                                     },
-                                    // Lower-middle rows: Base + harmonic analysis
                                     4..=7 => {
-                                        // Always include base frequency, add harmonic enhancement
                                         let harmonic_enhancement = if activity_level > 0.05 {
                                             let fundamental_freq = start_freq;
                                             let mut harmonic_energy = 0.0;
                                             
-                                            // Add harmonic content analysis
                                             for harmonic in [2.0, 3.0] {
                                                 let harmonic_freq = fundamental_freq * harmonic;
                                                 let harmonic_bin = (harmonic_freq / bin_width) as usize;
                                                 if harmonic_bin < frequency_data.len() && harmonic_bin <= end_bin {
                                                     let harmonic_magnitude = frequency_data[harmonic_bin];
-                                                    harmonic_energy += harmonic_magnitude * 0.3; // Weight harmonics lower
+                                                    harmonic_energy += harmonic_magnitude * 0.3;
                                                 }
                                             }
                                             harmonic_energy * 0.2 * activity_level
@@ -836,9 +805,7 @@ impl AudioProcessor {
                                         
                                         final_magnitude = band_magnitude + harmonic_enhancement;
                                     },
-                                    // Upper-middle rows: Base + beat modulation
                                     8..=11 => {
-                                        // Always include base frequency, add beat modulation
                                         let beat_enhancement = if self.bps > 0.1 && self.beat_intensity > 0.05 {
                                             let beat_phase = if self.last_beat_time.is_finite() && self.last_beat_time > 0.0 {
                                                 let beat_duration = 1.0 / self.bps as f64;
@@ -848,16 +815,13 @@ impl AudioProcessor {
                                                 } else { 0.0 }
                                             } else { 0.0 };
                                             
-                                            // Gentler beat effect that adds to base rather than multiplying
                                             let beat_strength = self.beat_intensity * activity_level.max(0.1);
                                             0.2 * beat_strength * (beat_phase * 2.0 * std::f32::consts::PI).sin()
                                         } else { 0.0 };
                                         
                                         final_magnitude = band_magnitude + band_magnitude * beat_enhancement;
                                     },
-                                    // Top rows: Base + spectral flux and mid/high emphasis
                                     12..=15 => {
-                                        // Always include base frequency, add spectral change emphasis
                                         let flux_enhancement = if let Some(ref prev_bins) = self.prev_fft_bins {
                                             let mut local_flux = 0.0;
                                             for bin in start_bin..=end_bin.min(frequency_data.len() - 1).min(prev_bins.len() - 1) {
@@ -868,7 +832,6 @@ impl AudioProcessor {
                                             local_flux / (end_bin - start_bin + 1).max(1) as f32
                                         } else { 0.0 };
                                         
-                                        // Add mid/high frequency emphasis for top rows
                                         let freq_emphasis = if start_freq > 1000.0 { 
                                             self.prev_high * 0.3 
                                         } else if start_freq > 250.0 { 
@@ -884,18 +847,14 @@ impl AudioProcessor {
                             }
                         }
                         
-                        // Apply frequency-band specific normalization to preserve musical dynamics
-                        // Always normalize, but scale the normalization by activity level
                         for band_x in 0..grid_size {
-                            // Find max value in this frequency band (across all Y values)
                             let mut band_max = 0.0f32;
                             for band_y in 0..grid_size {
                                 let idx = band_y * grid_size + band_x;
                                 band_max = band_max.max(grid_map_values_f32[idx]);
                             }
                             
-                            // Normalize this frequency band independently
-                            if band_max > 1e-8 { // Lower threshold for normalization
+                            if band_max > 1e-8 {
                                 for band_y in 0..grid_size {
                                     let idx = band_y * grid_size + band_x;
                                     grid_map_values_f32[idx] /= band_max;
@@ -903,27 +862,21 @@ impl AudioProcessor {
                             }
                         }
                         
-                        // Apply temporal smoothing to avoid jarring movements
-                        // Use different smoothing based on activity level
-                        let smoothing_factor = if activity_level > 0.1 { 0.3 } else { 0.15 }; // Moderate smoothing
+                        let smoothing_factor = if activity_level > 0.1 { 0.3 } else { 0.15 };
                         
                         if let Some(ref prev_grid) = self.prev_frequency_grid {
                             for i in 0..grid_map_values_f32.len() {
                                 if activity_level > 0.05 {
-                                    // Normal smoothing when there's some activity
                                     grid_map_values_f32[i] = prev_grid[i] * (1.0 - smoothing_factor) + 
                                                            grid_map_values_f32[i] * smoothing_factor;
                                 } else {
-                                    // Gentle decay when very low activity
-                                    grid_map_values_f32[i] = prev_grid[i] * 0.95; // 5% decay per frame
+                                    grid_map_values_f32[i] = prev_grid[i] * 0.95;
                                 }
                             }
                         } else if activity_level <= 0.05 {
-                            // If no previous grid and very low activity, start with zeros
                             grid_map_values_f32.fill(0.0);
                         }
                         
-                        // Store current grid for next frame
                         self.prev_frequency_grid = Some(grid_map_values_f32.clone());
                     }
                     
@@ -946,7 +899,51 @@ impl AudioProcessor {
             // Compute and store quantized bands (32 log bands, quantized to u8, rolling max)
             self.quantized_bands = self.compute_quantized_bands_log_rolling(frequency_data, 32, sample_rate);
 
-            // --- END BEAT DETECTION PIPELINE ---
+            // Calculate velocities (rate of change) for each band
+            let low_velocity = (low - self.prev_low) / delta_time.max(0.001);
+            let mid_velocity = (mid - self.prev_mid) / delta_time.max(0.001);
+            let high_velocity = (high - self.prev_high) / delta_time.max(0.001);
+            let kick_velocity = (kick - self.prev_kick) / delta_time.max(0.001);
+            let snare_velocity = (snare - self.prev_snare) / delta_time.max(0.001);
+            let hihat_velocity = (hihat - self.prev_hihat) / delta_time.max(0.001);
+            self.low_velocity_history.buffer.push(low_velocity);
+            self.mid_velocity_history.buffer.push(mid_velocity);
+            self.high_velocity_history.buffer.push(high_velocity);
+            self.kick_velocity_history.buffer.push(kick_velocity);
+            self.snare_velocity_history.buffer.push(snare_velocity);
+            self.hihat_velocity_history.buffer.push(hihat_velocity);
+
+            // Update peak holds with slow decay (for spiked visuals)
+            let peak_decay = 0.95; // Slow decay
+            self.low_peak_hold = self.low_peak_hold.max(low) * peak_decay;
+            self.mid_peak_hold = self.mid_peak_hold.max(mid) * peak_decay;
+            self.high_peak_hold = self.high_peak_hold.max(high) * peak_decay;
+            self.kick_peak_hold = self.kick_peak_hold.max(kick) * peak_decay;
+            self.snare_peak_hold = self.snare_peak_hold.max(snare) * peak_decay;
+            self.hihat_peak_hold = self.hihat_peak_hold.max(hihat) * peak_decay;
+            self.amplitude_peak_hold = self.amplitude_peak_hold.max(smoothed_amplitude) * peak_decay;
+
+            // Log-scaled values (perceptual, useful for brightness/scale in shaders)
+            let log_scale = |v: f32| if v > 0.0 { (1.0 + v.ln() / 10.0).clamp(0.0, 1.0) } else { 0.0 };
+            self.low_log = log_scale(low);
+            self.mid_log = log_scale(mid);
+            self.high_log = log_scale(high);
+
+            // Balance metrics (0-1, where 0.5 is balanced)
+            self.low_mid_balance = (low / (low + mid).max(1e-6)).clamp(0.0, 1.0);
+            self.mid_high_balance = (mid / (mid + high).max(1e-6)).clamp(0.0, 1.0);
+
+            // Onset strength (enhanced transient detection)
+            self.onset_strength = self.calculate_onset_strength(frequency_data);
+            let onset_velocity = (self.onset_strength - self.prev_onset_strength) / delta_time.max(0.001);
+            self.prev_onset_strength = self.onset_strength;
+
+            // Vocal likelihood calculation
+            let harmonic_score = self.get_harmonic_score(frequency_data);
+            let mid_variance = self.calculate_mid_variance();
+            let vocal_likelihood = (harmonic_score * CONSTANTS.vocal_harmonic_weight +
+                                    mid_variance * CONSTANTS.vocal_variance_weight +
+                                    mid * CONSTANTS.vocal_mid_weight).clamp(0.0, 1.0);
 
             PrimaryFreq530State {
                 time: self.time,
@@ -965,7 +962,7 @@ impl AudioProcessor {
                 kick: kick as f64,
                 snare: snare as f64,
                 hihat: hihat as f64,
-                vocal_likelihood: 0.0,
+                vocal_likelihood: vocal_likelihood as f64,
                 amplitude: smoothed_amplitude as f64,
                 raw_amplitude: raw_amplitude as f64,
                 beat_intensity: self.beat_intensity as f64,
@@ -982,11 +979,30 @@ impl AudioProcessor {
                 beat_times: self.beat_times.clone(),
                 last_beat_time: sanitized_last_beat_time,
                 quantized_bands: self.quantized_bands.iter().map(|&b| b as u32).collect(),
-                spectrogram_png: spectrogram_png_data,
                 spectral_centroid: spectral_centroid_value as f64,
                 chromagram: chromagram_values.iter().map(|&x| x as f64).collect(),
                 beat_phase: beat_phase_value,
                 frequency_grid_map: frequency_grid_map_f64,
+                low_velocity: low_velocity as f64,
+                mid_velocity: mid_velocity as f64,
+                high_velocity: high_velocity as f64,
+                kick_velocity: kick_velocity as f64,
+                snare_velocity: snare_velocity as f64,
+                hihat_velocity: hihat_velocity as f64,
+                low_peak_hold: self.low_peak_hold as f64,
+                mid_peak_hold: self.mid_peak_hold as f64,
+                high_peak_hold: self.high_peak_hold as f64,
+                kick_peak_hold: self.kick_peak_hold as f64,
+                snare_peak_hold: self.snare_peak_hold as f64,
+                hihat_peak_hold: self.hihat_peak_hold as f64,
+                amplitude_peak_hold: self.amplitude_peak_hold as f64,
+                low_log: self.low_log as f64,
+                mid_log: self.mid_log as f64,
+                high_log: self.high_log as f64,
+                low_mid_balance: self.low_mid_balance as f64,
+                mid_high_balance: self.mid_high_balance as f64,
+                onset_strength: self.onset_strength as f64,
+                spectrogram_data: spectrogram_data_f64,
             }
         };
 
@@ -1357,14 +1373,12 @@ impl AudioProcessor {
     /// Calculate amplitude for video speed control (0-1 range)
     /// Goal: 0 = quiet/silent, 0.5 = typical audio level, 1 = very busy/loud
     fn calculate_video_amplitude(&mut self, raw_amplitude: f32) -> f32 {
-        // Define constants for the amplitude calculation
-        const SILENCE_THRESHOLD: f32 = 0.0001;  // Below this is considered silence
-        const BASELINE_ADAPTATION_RATE: f32 = 0.001;  // How fast we adapt to new baseline
-        const PEAK_ADAPTATION_RATE: f32 = 0.01;       // How fast we adapt peaks
-        const ACTIVITY_SMOOTHING_RATE: f32 = 0.1;     // Smoothing for activity level
-        const MAX_SILENCE_FRAMES: i32 = 100;          // Frames before fading to zero
+        const SILENCE_THRESHOLD: f32 = 0.0001;
+        const BASELINE_ADAPTATION_RATE: f32 = 0.001;
+        const PEAK_ADAPTATION_RATE: f32 = 0.01;
+        const ACTIVITY_SMOOTHING_RATE: f32 = 0.1;
+        const MAX_SILENCE_FRAMES: i32 = 100;
         
-        // Update baseline (rolling average of typical audio levels)
         if raw_amplitude > SILENCE_THRESHOLD {
             self.amplitude_baseline = self.amplitude_baseline * (1.0 - BASELINE_ADAPTATION_RATE) 
                 + raw_amplitude * BASELINE_ADAPTATION_RATE;
@@ -1373,55 +1387,41 @@ impl AudioProcessor {
             self.silence_counter += 1;
         }
         
-        // Update peak tracker (recent high levels)
         if raw_amplitude > self.amplitude_peak_tracker {
             self.amplitude_peak_tracker = raw_amplitude;
         } else {
-            // Slowly decay peak tracker
             self.amplitude_peak_tracker = self.amplitude_peak_tracker * 0.995;
         }
         
-        // Calculate activity level relative to baseline
         let activity_ratio = if self.amplitude_baseline > SILENCE_THRESHOLD {
             raw_amplitude / self.amplitude_baseline
         } else {
             0.0
         };
         
-        // Update smoothed activity
         self.activity_smoothing = self.activity_smoothing * (1.0 - ACTIVITY_SMOOTHING_RATE) 
             + activity_ratio * ACTIVITY_SMOOTHING_RATE;
         
-        // Handle silence - fade to zero if we've been quiet for too long
         if self.silence_counter >= MAX_SILENCE_FRAMES {
             return 0.0;
         }
         
-        // Map activity to 0-1 range with 0.5 as typical level
         let normalized_amplitude = if raw_amplitude <= SILENCE_THRESHOLD {
-            // Below silence threshold = 0
             0.0
         } else {
-            // Use a logarithmic curve to map activity to 0-1 range
-            // This ensures 0.5 represents "typical" audio levels
-            let log_activity = (activity_ratio + 0.1).ln(); // +0.1 to avoid log(0)
-            let baseline_log = 1.1_f32.ln(); // ln(1.0 + 0.1) for typical level
+            let log_activity = (activity_ratio + 0.1).ln();
+            let baseline_log = 1.1_f32.ln();
             
-            // Scale so that baseline activity maps to 0.5
             let scaled = (log_activity / baseline_log) * 0.5;
             
-            // Apply sigmoid curve for smooth transitions
-            let sigmoid_input = (scaled - 0.5) * 4.0; // Scale for appropriate curve
+            let sigmoid_input = (scaled - 0.5) * 4.0;
             let sigmoid = 1.0 / (1.0 + (-sigmoid_input).exp());
             
-            // Blend with direct activity ratio for responsiveness
             let direct_component = (activity_ratio - 1.0).max(0.0) * 0.5 + 0.5;
             
-            // Combine sigmoid and direct components
             (sigmoid * 0.7 + direct_component * 0.3).clamp(0.0, 1.0)
         };
         
-        // Apply fade-in from silence
         let silence_fade = if self.silence_counter > 0 {
             (1.0 - (self.silence_counter as f32 / MAX_SILENCE_FRAMES as f32)).max(0.0)
         } else {
@@ -1430,15 +1430,28 @@ impl AudioProcessor {
         
         let final_amplitude = normalized_amplitude * silence_fade;
         
-        // Ensure we have good response to beat/transient content
-        // Boost amplitude during high spectral flux (sudden changes)
         let transient_boost = if self.spectral_flux > 0.1 {
-            1.0 + (self.spectral_flux - 0.1) * 0.5  // Up to 50% boost for high flux
+            1.0 + (self.spectral_flux - 0.1) * 0.5
         } else {
             1.0
         };
         
         (final_amplitude * transient_boost).clamp(0.0, 1.0)
+    }
+    
+    fn calculate_onset_strength(&self, current_bins: &[f32]) -> f32 {
+        if let Some(prev_bins) = &self.prev_fft_bins {
+            let min_length = current_bins.len().min(prev_bins.len());
+            let mut onset = 0.0;
+            for i in 0..min_length {
+                let curr_log = if current_bins[i] > 0.0 { current_bins[i].ln() } else { 0.0 };
+                let prev_log = if prev_bins[i] > 0.0 { prev_bins[i].ln() } else { 0.0 };
+                onset += (curr_log - prev_log).max(0.0);
+            }
+            (onset / min_length as f32).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
     }
 }
 
@@ -1478,11 +1491,30 @@ impl From<&crate::state::PrimaryFreq530State> for ProtoState {
             beat_times: s.beat_times.clone(),
             last_beat_time: s.last_beat_time,
             quantized_bands: s.quantized_bands.clone(),
-            spectrogram_png: s.spectrogram_png.clone(),
             spectral_centroid: s.spectral_centroid,
             chromagram: s.chromagram.clone(),
             beat_phase: s.beat_phase,
             frequency_grid_map: s.frequency_grid_map.clone(),
+            low_velocity: s.low_velocity,
+            mid_velocity: s.mid_velocity,
+            high_velocity: s.high_velocity,
+            kick_velocity: s.kick_velocity,
+            snare_velocity: s.snare_velocity,
+            hihat_velocity: s.hihat_velocity,
+            low_peak_hold: s.low_peak_hold,
+            mid_peak_hold: s.mid_peak_hold,
+            high_peak_hold: s.high_peak_hold,
+            kick_peak_hold: s.kick_peak_hold,
+            snare_peak_hold: s.snare_peak_hold,
+            hihat_peak_hold: s.hihat_peak_hold,
+            amplitude_peak_hold: s.amplitude_peak_hold,
+            low_log: s.low_log,
+            mid_log: s.mid_log,
+            high_log: s.high_log,
+            low_mid_balance: s.low_mid_balance,
+            mid_high_balance: s.mid_high_balance,
+            onset_strength: s.onset_strength,
+            spectrogram_data: s.spectrogram_data.clone(),
         }
     }
 }
@@ -1516,4 +1548,4 @@ fn dynamic_normalize_with_sharpness(value: f32, history: &HistoryState, sharpnes
     let std = (values.iter().map(|&x| (x - mean).powi(2)).sum::<f32>() / n).sqrt().max(1e-6);
     let z = sharpness * (value - mean) / std;
     1.0 / (1.0 + (-z).exp())
-} 
+}

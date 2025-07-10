@@ -42,18 +42,48 @@ export const Freq530FieldTypes: Record<typeof Freq530FieldKeys[number], Freq530F
   beatTimes: Freq530FieldType.NumberArray,
   lastBeatTime: Freq530FieldType.Number,
   quantizedBands: Freq530FieldType.NumberArrayBars,
-  spectogram: Freq530FieldType.Spectogram,
   
   // New audio fields
   spectralCentroid: Freq530FieldType.Zero1,
   chromagram: Freq530FieldType.NumberArray,
   beatPhase: Freq530FieldType.Zero1,
   frequencyGridMap: Freq530FieldType.NumberArray,
+  lowVelocity: Freq530FieldType.Neg1To1,
+  midVelocity: Freq530FieldType.Neg1To1,
+  highVelocity: Freq530FieldType.Neg1To1,
+  kickVelocity: Freq530FieldType.Neg1To1,
+  snareVelocity: Freq530FieldType.Neg1To1,
+  hihatVelocity: Freq530FieldType.Neg1To1,
+  lowPeakHold: Freq530FieldType.Zero1,
+  midPeakHold: Freq530FieldType.Zero1,
+  highPeakHold: Freq530FieldType.Zero1,
+  kickPeakHold: Freq530FieldType.Zero1,
+  snarePeakHold: Freq530FieldType.Zero1,
+  hihatPeakHold: Freq530FieldType.Zero1,
+  amplitudePeakHold: Freq530FieldType.Zero1,
+  lowLog: Freq530FieldType.Zero1,
+  midLog: Freq530FieldType.Zero1,
+  highLog: Freq530FieldType.Zero1,
+  lowMidBalance: Freq530FieldType.Zero1,
+  midHighBalance: Freq530FieldType.Zero1,
+  onsetStrength: Freq530FieldType.Zero1,
+  spectrogramData: Freq530FieldType.NumberArray,
 }
 
 export type Freq530Field = typeof Freq530FieldKeys[number]
-// export type Freq530ValueMap = Record<Freq530Field, number>
-// export type Freq530RefMap = Record<Freq530Field, React.MutableRefObject<number>>
+
+export type Freq530ValueMap = {
+  [K in Freq530Field]:
+    K extends 'beatTimes' | 'quantizedBands' | 'chromagram' | 'frequencyGridMap' | 'spectrogramData' ? number[] : number
+}
+
+export type Freq530RefMap = {
+  [K in Freq530Field]:
+    React.RefObject<
+      K extends 'beatTimes' | 'quantizedBands' | 'chromagram' | 'frequencyGridMap' | 'spectrogramData' ? number[] : number
+    >
+}
+
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
 
 export interface Freq530Store {
@@ -63,24 +93,10 @@ export interface Freq530Store {
   refs: Freq530RefMap
 }
 
-let counter = 50
-
 // we need a ValueMap that gives array fields their proper types:
-export type Freq530ValueMap = {
-  [K in Freq530Field]:
-    K extends 'beatTimes' | 'quantizedBands' | 'chromagram' | 'frequencyGridMap' ? number[] : number
-}
-
-// refs must hold the same types:
-export type Freq530RefMap = {
-  [K in Freq530Field]:
-    React.RefObject<
-      K extends 'beatTimes' | 'quantizedBands' | 'chromagram' | 'frequencyGridMap' ? number[] : number
-    >
-}
 
 export const useFreq530 = create<Freq530Store>((set, get) => {
-  const arrayFields = ['beatTimes', 'quantizedBands', 'chromagram', 'frequencyGridMap'] as const
+  const arrayFields = ['beatTimes', 'quantizedBands', 'chromagram', 'frequencyGridMap', 'spectrogramData'] as const
   
   const values = Object.fromEntries(
     Freq530FieldKeys.map(k => [k, arrayFields.includes(k as any) ? [] : 0])
@@ -129,13 +145,7 @@ export const useFreq530 = create<Freq530Store>((set, get) => {
             const nextValues = { ...get().values }
 
             // Debug: Log the decoded object to see what fields we're actually receiving
-            if (counter > 45) {
-              if (debug) console.log('Decoded proto object keys:', Object.keys(obj)) // debug
-              if (debug) console.log('Looking for frequencyGridMap, found:', obj.frequencyGridMap) // debug
-              if (debug) console.log('Looking for frequency_grid_map, found:', (obj as any).frequency_grid_map) // debug
-              if (debug) console.log('Looking for frequencyGridMap length:', obj.frequencyGridMap?.length) // debug
-              counter--
-            }
+            if (debug) console.log('Decoded proto object keys:', Object.keys(obj))
 
             for (const k of Freq530FieldKeys) {
               const value = obj[k]
@@ -144,8 +154,8 @@ export const useFreq530 = create<Freq530Store>((set, get) => {
                 ;(get().refs[k] as React.RefObject<number[]>).current = value
                 
                 // Debug specifically for frequencyGridMap
-                if (k === 'frequencyGridMap' && Array.isArray(value) && value.length > 0) {
-                  if (debug) console.log('FREQUENCY GRID MAP UPDATED:', value.length, 'values, first few:', value.slice(0, 5)) // debug
+                if (debug && k === 'frequencyGridMap' && Array.isArray(value) && value.length > 0) {
+                  console.log('FREQUENCY GRID MAP UPDATED:', value.length, 'values, first few:', value.slice(0, 5))
                 }
               } else if (typeof value === "number" && !arrayFields.includes(k as any)) {
                 // Sanitize special values
@@ -154,12 +164,6 @@ export const useFreq530 = create<Freq530Store>((set, get) => {
                   safeValue = 0
                 }
                 (nextValues as any)[k] = safeValue
-                if(counter > 0) {
-                  // console.log('Decoded proto object:', obj)
-                  // console.log('NOTICE THIS', k, value)
-                  counter--
-                }
-                // console.log(`setting ${k} to ${safeValue}`)
                 ;(get().refs[k] as React.RefObject<number>).current = safeValue
               }
             }
@@ -172,4 +176,3 @@ export const useFreq530 = create<Freq530Store>((set, get) => {
     }
   }
 })
-

@@ -69,7 +69,7 @@ return (
       )}
 
 
-      {true && !loading && videos.length > 0 && masks.length > 0 && (
+      {false && !loading && videos.length > 0 && masks.length > 0 && (
         <>
           <group scale={[scale, scale, scale]} rotation={[0, Math.PI / 2, 0]}>
             <TripSequenceShuffler
@@ -100,7 +100,7 @@ return (
         </>
       )}
 
-{true && !loading && videos.length > 0 && masks.length > 0 && (
+{false && !loading && videos.length > 0 && masks.length > 0 && (
         <>
           <group scale={[scale + 5, scale + 5, scale + 5]} rotation={[0, Math.PI / 2, 0]}>
             <TripSequenceShuffler

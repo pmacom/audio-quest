@@ -1,45 +1,67 @@
+// state.proto
+
 syntax = "proto3";
+
+package audio_processor;
+
 message PrimaryFreq530State {
-  double time = 1;
-  double adjusted_time = 2;
-  double sin = 3;
-  double cos = 4;
-  double sin_normal = 5;
-  double cos_normal = 6;
-  double adjusted_sin = 7;
-  double adjusted_cos = 8;
-  double adjusted_sin_normal = 9;
-  double adjusted_cos_normal = 10;
-  double low = 11;
-  double mid = 12;
-  double high = 13;
-  double kick = 14;
-  double snare = 15;
-  double hihat = 16;
-  double vocal_likelihood = 17;
-  double amplitude = 18;
-  double raw_amplitude = 19;
-  double beat_intensity = 20;
-  double bps = 21;
-
-  // Dynamic normalization fields
-  double low_dynamic = 22;
-  double mid_dynamic = 23;
-  double high_dynamic = 24;
-  double kick_dynamic = 25;
-  double snare_dynamic = 26;
-  double hihat_dynamic = 27;
-  double amplitude_dynamic = 28;
-  double raw_amplitude_dynamic = 29;
-
-  // New fields
-  double spectral_flux           = 30;
-  repeated double beat_times     = 31;
-  double last_beat_time          = 32;
-  repeated uint32 quantized_bands = 40;
-  double spectral_centroid = 41;
-  optional bytes spectrogram_png = 42;
-  repeated double chromagram = 43;
-  double beat_phase = 44;
-  repeated double frequency_grid_map = 45;
+    double time = 1;
+    double adjusted_time = 2;
+    double sin = 3;
+    double cos = 4;
+    double sin_normal = 5;
+    double cos_normal = 6;
+    double adjusted_sin = 7;
+    double adjusted_cos = 8;
+    double adjusted_sin_normal = 9;
+    double adjusted_cos_normal = 10;
+    double low = 11;
+    double mid = 12;
+    double high = 13;
+    double kick = 14;
+    double snare = 15;
+    double hihat = 16;
+    double vocal_likelihood = 17;
+    double amplitude = 18;
+    double raw_amplitude = 19;
+    double beat_intensity = 20;
+    double bps = 21;
+    double low_dynamic = 22;
+    double mid_dynamic = 23;
+    double high_dynamic = 24;
+    double kick_dynamic = 25;
+    double snare_dynamic = 26;
+    double hihat_dynamic = 27;
+    double amplitude_dynamic = 28;
+    double raw_amplitude_dynamic = 29;
+    double spectral_flux = 30;
+    repeated double beat_times = 31;
+    double last_beat_time = 32;
+    repeated uint32 quantized_bands = 33;
+    double spectral_centroid = 35;
+    repeated double chromagram = 36;
+    double beat_phase = 37;
+    repeated double frequency_grid_map = 38;
+    // New fields from improvements
+    double low_velocity = 39;
+    double mid_velocity = 40;
+    double high_velocity = 41;
+    double kick_velocity = 42;
+    double snare_velocity = 43;
+    double hihat_velocity = 44;
+    double low_peak_hold = 45;
+    double mid_peak_hold = 46;
+    double high_peak_hold = 47;
+    double kick_peak_hold = 48;
+    double snare_peak_hold = 49;
+    double hihat_peak_hold = 50;
+    double amplitude_peak_hold = 51;
+    double low_log = 52;
+    double mid_log = 53;
+    double high_log = 54;
+    double low_mid_balance = 55;
+    double mid_high_balance = 56;
+    double onset_strength = 57;
+    // New spectrogram data field for optimized texture use
+    repeated double spectrogram_data = 58;
 }

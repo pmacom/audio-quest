@@ -1,6 +1,4 @@
-use serde::Serialize;
-
-#[derive(Serialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct PrimaryFreq530State {
     pub time: f64,
     pub adjusted_time: f64,
@@ -23,7 +21,6 @@ pub struct PrimaryFreq530State {
     pub raw_amplitude: f64,
     pub beat_intensity: f64,
     pub bps: f64,
-    // Dynamic (windowed) normalization fields
     pub low_dynamic: f64,
     pub mid_dynamic: f64,
     pub high_dynamic: f64,
@@ -32,15 +29,32 @@ pub struct PrimaryFreq530State {
     pub hihat_dynamic: f64,
     pub amplitude_dynamic: f64,
     pub raw_amplitude_dynamic: f64,
-    // New fields
     pub spectral_flux: f64,
     pub beat_times: Vec<f64>,
     pub last_beat_time: f64,
     pub quantized_bands: Vec<u32>,
-    pub spectrogram_png: Option<Vec<u8>>,
-    // Additional new fields
     pub spectral_centroid: f64,
     pub chromagram: Vec<f64>,
     pub beat_phase: f64,
     pub frequency_grid_map: Vec<f64>,
-} 
+    pub low_velocity: f64,
+    pub mid_velocity: f64,
+    pub high_velocity: f64,
+    pub kick_velocity: f64,
+    pub snare_velocity: f64,
+    pub hihat_velocity: f64,
+    pub low_peak_hold: f64,
+    pub mid_peak_hold: f64,
+    pub high_peak_hold: f64,
+    pub kick_peak_hold: f64,
+    pub snare_peak_hold: f64,
+    pub hihat_peak_hold: f64,
+    pub amplitude_peak_hold: f64,
+    pub low_log: f64,
+    pub mid_log: f64,
+    pub high_log: f64,
+    pub low_mid_balance: f64,
+    pub mid_high_balance: f64,
+    pub onset_strength: f64,
+    pub spectrogram_data: Vec<f64>,
+}
